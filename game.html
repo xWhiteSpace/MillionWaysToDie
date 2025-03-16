@@ -79,6 +79,15 @@
             border-radius: 3px;
             margin-left: 8px;
             font-size: 0.9em;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .skill-shortcut:hover {
+            background: rgba(0, 0, 0, 0.4);
+        }
+        .skill-shortcut.listening {
+            animation: pulse 1s infinite;
+            background: rgba(0, 255, 0, 0.2);
         }
         .skill-description {
             font-size: 12px;
@@ -248,6 +257,122 @@
             left: 50%;
             transform: translateX(-50%);
             font-size: 20px;
+        }
+        .skill-button {
+            position: relative;
+        }
+        
+        .key-bind {
+            position: absolute;
+            top: -15px;
+            right: -5px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            border: 1px solid #666;
+        }
+
+        .listening-for-key {
+            animation: pulse 1s infinite;
+            border: 2px solid #00ff00;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 255, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 0, 0); }
+        }
+
+        .rebind-tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            pointer-events: none;
+            z-index: 1000;
+            border: 1px solid #666;
+            display: none;
+        }
+        .shortcut-tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            z-index: 1000;
+            border: 1px solid #666;
+            pointer-events: none;
+            display: none;
+        }
+
+        .warning-message {
+            position: fixed;
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            font-size: 14px;
+            z-index: 1000;
+            border: 1px solid #ff6666;
+            animation: fadeOut 2s forwards;
+            pointer-events: none;
+        }
+
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            70% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        .ai-loading {
+            display: none;
+            margin-left: 10px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .ai-error {
+            color: #ff4444;
+            margin-top: 5px;
+            padding: 8px;
+            border-radius: 4px;
+            background: rgba(255, 0, 0, 0.1);
+            display: none;
+        }
+
+        .floating-text {
+            position: absolute;
+            animation: floatUp 2s forwards;
+            pointer-events: none;
+            font-weight: bold;
+            text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .level-up {
+            color: #FFD700;
+            font-size: 24px;
+            text-shadow: 
+                0 0 5px #FFA500,
+                0 0 10px #FF8C00,
+                0 0 15px #FF7F50;
+        }
+
+        @keyframes floatUp {
+            0% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
         }
     </style>
 </head>
@@ -530,7 +655,20 @@
                 // Restore HP/SP on level up
                 playerStats.hp = playerStats.maxHp;
                 playerStats.sp = playerStats.maxSp;
-                alert(`Level Up! You are now level ${playerStats.level}!`);
+
+                // Show floating level up text
+                const levelUpText = document.createElement('div');
+                levelUpText.className = 'floating-text level-up';
+                levelUpText.textContent = `Level Up! ${playerStats.level}`;
+                levelUpText.style.position = 'absolute';
+                levelUpText.style.left = `${character.offsetLeft + character.offsetWidth / 2}px`;
+                levelUpText.style.top = `${character.offsetTop - 20}px`;
+                document.getElementById('gameArea').appendChild(levelUpText);
+
+                // Remove the text after animation
+                setTimeout(() => {
+                    levelUpText.remove();
+                }, 2000);
             }
             updateDisplays();
         }
@@ -640,7 +778,7 @@
             }
             if (particles) {
                 dummy.setAttribute('data-status', particles);
-            } else {
+                } else {
                 dummy.removeAttribute('data-status');
             }
 
@@ -813,7 +951,7 @@
 
         // Modify createSkillEffect to handle teleport dodge skills
         function createSkillEffect(type, color, damage, spCost, element, skillName, isDodgeSkill = false, cooldownMs = 1000) {
-            return () => {
+                return () => {
                 if (playerStats.skillCooldown || playerStats.sp < spCost) {
                     const errorText = document.createElement('div');
                     errorText.className = 'combat-text';
@@ -932,14 +1070,47 @@
                     rangedBall.style.background = elements[element].gradient;
                     rangedBall.style.boxShadow = `0 0 10px ${elements[element].particleColor}`;
                     rangedBall.style.display = 'block';
-                    let ballX = charX + 50;
-                    let ballY = charY + 15;
+                    
+                    // Start from character center
+                    let ballX = charX + 25;
+                    let ballY = charY + 25;
                     rangedBall.style.left = ballX + 'px';
                     rangedBall.style.top = ballY + 'px';
 
+                    // Get direction from WASD keys
+                    let dx = 0;
+                    let dy = 0;
+                    if (pressedKeys.has('w')) dy -= 1;
+                    if (pressedKeys.has('s')) dy += 1;
+                    if (pressedKeys.has('a')) dx -= 1;
+                    if (pressedKeys.has('d')) dx += 1;
+
+                    // If no direction pressed, default to right
+                    if (dx === 0 && dy === 0) {
+                        dx = 1;
+                    }
+
+                    // Normalize diagonal movement
+                    if (dx !== 0 && dy !== 0) {
+                        const length = Math.sqrt(dx * dx + dy * dy);
+                        dx /= length;
+                        dy /= length;
+                    }
+
+                    const speed = 10; // Projectile speed
                     const moveBall = setInterval(() => {
-                        ballX += 10;
-                        if (ballX >= 450 && ballX <= 500 && ballY >= 175 && ballY <= 225) {
+                        ballX += dx * speed;
+                        ballY += dy * speed;
+
+                        // Check if ball hits dummy (now from any direction)
+                        const dummyX = 450;
+                        const dummyY = 175;
+                        const distance = Math.sqrt(
+                            Math.pow(ballX - dummyX, 2) + 
+                            Math.pow(ballY - dummyY, 2)
+                        );
+
+                        if (distance < 50) { // Hit if within 50 pixels of dummy center
                             dummyHealth -= finalDamage;
                             if (dummyHealth < 0) dummyHealth = 0;
                             dummy.textContent = dummyHealth;
@@ -947,7 +1118,7 @@
                                 gainExp(50);
                             }
 
-                            // Apply status effects only on hit for ranged attacks
+                            // Apply status effects on hit
                             if (element === 'fire') {
                                 applyStatusEffect('burn', element);
                             } else if (element === 'poison') {
@@ -956,7 +1127,7 @@
                                 applyStatusEffect('freeze', element);
                             }
 
-                            // Show damage text when projectile hits
+                            // Show damage text
                             const damageText = document.createElement('div');
                             damageText.className = 'combat-text';
                             damageText.style.position = 'absolute';
@@ -974,7 +1145,7 @@
 
                             clearInterval(moveBall);
                             rangedBall.style.display = 'none';
-                        } else if (ballX > 600) {
+                        } else if (ballX < 0 || ballX > 600 || ballY < 0 || ballY > 400) {
                             // Show "Miss!" text if projectile goes off screen
                             const missText = document.createElement('div');
                             missText.className = 'combat-text';
@@ -990,8 +1161,9 @@
                             rangedBall.style.display = 'none';
                         } else {
                             rangedBall.style.left = ballX + 'px';
+                            rangedBall.style.top = ballY + 'px';
                         }
-                    }, 50);
+                    }, 16);
                 } else {
                     character.style.background = elements[element].gradient;
                     character.style.boxShadow = `0 0 10px ${elements[element].particleColor}`;
@@ -1099,18 +1271,28 @@
         // Handle keydown
         document.addEventListener('keydown', (event) => {
             const key = event.key.toLowerCase();
+            
             // Only handle WASD if we're not typing in the input field
             if (['w', 'a', 's', 'd'].includes(key) && document.activeElement !== skillInput) {
                 pressedKeys.add(key);
                 event.preventDefault(); // Prevent scrolling
             }
-            // Handle skill shortcuts (1-4) regardless of input focus
-            if (key >= '1' && key <= '4') {
-                const skillIndex = parseInt(key) - 1;
-                if (skillIndex < skills.length) {
-                    skills[skillIndex].effect();
+
+            // Handle skill shortcuts
+            if (isListeningForKey) return; // Don't trigger skills while rebinding
+            
+            // Find which skill this key is bound to
+            Object.keys(keyBindings).forEach(skillKey => {
+                const binding = keyBindings[skillKey];
+                // Check if the pressed key matches the binding
+                // Handle special case for spacebar
+                if ((key === binding.key) || (key === ' ' && binding.key === ' ')) {
+                    const skillIndex = parseInt(skillKey.replace('skill', '')) - 1;
+                    if (skillIndex >= 0 && skillIndex < skills.length) {
+                        skills[skillIndex].effect();
+                    }
                 }
-            }
+            });
         });
 
         // Handle keyup
@@ -1131,7 +1313,20 @@
             const prompt = skillInput.value.trim();
             if (!prompt) return;
 
+            // Show loading indicator
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'ai-loading';
+            loadingDiv.textContent = '🤖 AI is generating your skill...';
+            skillInput.parentNode.insertBefore(loadingDiv, skillInput.nextSibling);
+            loadingDiv.style.display = 'block';
+
+            // Create error display
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'ai-error';
+            skillInput.parentNode.insertBefore(errorDiv, loadingDiv.nextSibling);
+
             try {
+                console.log('Sending prompt to AI:', prompt);
                 const response = await fetch('http://localhost:11434/api/generate', {
                     method: 'POST',
                     headers: {
@@ -1202,140 +1397,166 @@
                             "hasStatusEffect": boolean,
                             "isAoE": boolean,
                             "utilityValue": number between 0-10
-                        }`
+                        }
+
+                        IMPORTANT: Return ONLY the JSON object, no other text.`
                     })
                 });
 
-                const data = await response.text();
+                // Read the streaming response
+                const reader = response.body.getReader();
+                let fullResponse = '';
+                
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    
+                    // Convert the Uint8Array to text
+                    const chunk = new TextDecoder().decode(value);
+                    try {
+                        // Parse the chunk as JSON
+                        const jsonChunk = JSON.parse(chunk);
+                        if (jsonChunk.response) {
+                            fullResponse += jsonChunk.response;
+                        }
+                    } catch (e) {
+                        console.warn('Error parsing chunk:', e);
+                        fullResponse += chunk;
+                    }
+                }
+
+                console.log('Full Response:', fullResponse);
                 let skillData;
+                let isDodgeSkill = false;
 
                 try {
-                    const jsonMatch = data.response.match(/\{[\s\S]*\}/);
+                    // Look for a JSON object in the response
+                    const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
                     if (jsonMatch) {
-                        skillData = JSON.parse(jsonMatch[0]);
+                        const jsonStr = jsonMatch[0].replace(/\\n/g, '').replace(/\s+/g, ' ');
+                        skillData = JSON.parse(jsonStr);
+                        console.log('Parsed Skill Data:', skillData);
+                        
+                        // Check if it's a dodge skill
+                        isDodgeSkill = prompt.toLowerCase().includes('dodge') || 
+                                     prompt.toLowerCase().includes('evade') || 
+                                     prompt.toLowerCase().includes('blink');
+
+                        // Create the skill
+                        const skill = {
+                            name: skillData.name,
+                            effect: createSkillEffect(
+                                skillData.type,
+                                skillData.color,
+                                skillData.damage,
+                                skillData.spCost,
+                                skillData.element,
+                                skillData.name,
+                                isDodgeSkill,
+                                skillData.cooldownMs
+                            ),
+                            description: generateTechnicalDescription(skillData, isDodgeSkill),
+                            damage: skillData.damage,
+                            element: skillData.element,
+                            spCost: skillData.spCost,
+                            cooldownMs: skillData.cooldownMs,
+                            isDodgeSkill: isDodgeSkill,
+                            powerLevel: skillData.powerLevel
+                        };
+
+                        // Add success feedback
+                        console.log('Skill created successfully:', skill);
+                        const successDiv = document.createElement('div');
+                        successDiv.style.color = '#4CAF50';
+                        successDiv.style.marginTop = '5px';
+                        successDiv.textContent = '✨ Skill generated successfully!';
+                        skillInput.parentNode.insertBefore(successDiv, errorDiv);
+                        setTimeout(() => successDiv.remove(), 2000);
+
+                        skills.push(skill);
+                        updateSkillList();
+                        skillInput.value = '';
                     } else {
                         throw new Error('No JSON found in response');
                     }
                 } catch (e) {
-                    console.log('Parsing error:', e);
-                    // Enhanced fallback system with better balance
+                    console.error('AI parsing error:', e);
+                    errorDiv.textContent = '⚠️ AI response format error, using fallback system';
+                    errorDiv.style.display = 'block';
+                    setTimeout(() => errorDiv.style.display = 'none', 3000);
+                    
+                    // Use the fallback system
                     const text = prompt.toLowerCase();
-                    const isDodgeSkill = text.includes('dodge') || text.includes('evade') || text.includes('avoid');
+                    const isDodgeSkill = text.includes('dodge') || text.includes('evade') || text.includes('blink');
                     const isAoE = text.includes('area') || text.includes('aoe') || text.includes('explosion') || text.includes('wave');
                     const hasStatusEffect = text.includes('burn') || text.includes('freeze') || text.includes('poison');
                     const isBasicAttack = text.includes('basic') || text.includes('normal') || text.includes('simple');
                     const isPowerful = text.includes('ultimate') || text.includes('powerful') || text.includes('massive');
                     const isMelee = !text.includes('shoot') && !text.includes('beam') && !text.includes('ball');
-                    
-                    // Calculate base values with melee bonus
-                    let baseDamage;
-                    if (isMelee) {
-                        baseDamage = isBasicAttack ? 8 + Math.floor(Math.random() * 8) : // 8-15
-                                    isPowerful ? 25 + Math.floor(Math.random() * 11) : // 25-35
-                                    15 + Math.floor(Math.random() * 11); // 15-25
-                    } else {
-                        baseDamage = isBasicAttack ? 5 + Math.floor(Math.random() * 6) : // 5-10
-                                    isPowerful ? 20 + Math.floor(Math.random() * 11) : // 20-30
-                                    10 + Math.floor(Math.random() * 11); // 10-20
-                    }
 
-                    // SP cost with melee discount
-                    let baseSpCost = isBasicAttack ? 5 + Math.floor(Math.random() * 11) : // 5-15
-                                   isPowerful ? 30 + Math.floor(Math.random() * 21) : // 30-50
-                                   15 + Math.floor(Math.random() * 16); // 15-30
-                    if (isMelee) baseSpCost = Math.floor(baseSpCost * 0.8); // 20% less SP cost for melee
-
-                    // Cooldown with melee reduction
-                    let baseCooldown = isBasicAttack ? 200 + Math.floor(Math.random() * 301) : // 200-500
-                                     isPowerful ? 1500 + Math.floor(Math.random() * 1501) : // 1500-3000
-                                     500 + Math.floor(Math.random() * 1001); // 500-1500
-                    if (isMelee) baseCooldown = Math.floor(baseCooldown * 0.75); // 25% lower cooldown for melee
-
-                    // Apply modifiers
-                    if (hasStatusEffect) {
-                        baseDamage = Math.floor(baseDamage * 0.7);
-                        baseSpCost += 5 + Math.floor(Math.random() * 6); // +5-10 SP
-                    }
-                    if (isAoE) {
-                        baseDamage = Math.floor(baseDamage * 0.8);
-                        baseSpCost += 10 + Math.floor(Math.random() * 6); // +10-15 SP
-                        baseCooldown = Math.floor(baseCooldown * 1.3);
-                    }
-                    if (isDodgeSkill) {
-                        baseDamage = 0;
-                        baseSpCost = Math.floor(baseSpCost * 0.3);
-                        baseCooldown = Math.floor(baseCooldown * 0.8);
-                    }
-                    
+                    // Create fallback skill data
                     skillData = {
                         name: prompt.charAt(0).toUpperCase() + prompt.slice(1),
-                        type: text.includes('shoot') || text.includes('beam') || text.includes('ball') ? 'ranged' : 'melee',
+                        type: isMelee ? 'melee' : 'ranged',
                         element: text.includes('fire') ? 'fire' : 
-                                text.includes('ice') ? 'water' : 
-                                text.includes('lightning') ? 'wind' : 
+                                text.includes('ice') || text.includes('water') ? 'water' : 
+                                text.includes('wind') ? 'wind' : 
                                 text.includes('poison') ? 'poison' : 'neutral',
-                        damage: baseDamage,
-                        spCost: baseSpCost,
-                        cooldownMs: baseCooldown,
+                        damage: isMelee ? 
+                            (isBasicAttack ? 8 + Math.floor(Math.random() * 8) : // 8-15
+                             isPowerful ? 25 + Math.floor(Math.random() * 11) : // 25-35
+                             15 + Math.floor(Math.random() * 11)) : // 15-25
+                            (isBasicAttack ? 5 + Math.floor(Math.random() * 6) : // 5-10
+                             isPowerful ? 20 + Math.floor(Math.random() * 11) : // 20-30
+                             10 + Math.floor(Math.random() * 11)), // 10-20
+                        spCost: Math.floor((isBasicAttack ? 5 + Math.random() * 11 : // 5-15
+                                          isPowerful ? 30 + Math.random() * 21 : // 30-50
+                                          15 + Math.random() * 16) * // 15-30
+                                         (isMelee ? 0.8 : 1)), // 20% less for melee
+                        cooldownMs: Math.floor((isBasicAttack ? 200 + Math.random() * 301 : // 200-500
+                                              isPowerful ? 1500 + Math.random() * 1501 : // 1500-3000
+                                              500 + Math.random() * 1001) * // 500-1500
+                                             (isMelee ? 0.75 : 1)), // 25% lower for melee
                         description: generateWoWDescription(prompt),
                         powerLevel: isPowerful ? "high" : isBasicAttack ? "low" : "medium",
                         hasStatusEffect: hasStatusEffect,
                         isAoE: isAoE,
                         utilityValue: isDodgeSkill ? 8 : hasStatusEffect ? 5 : 2
                     };
+
+                    // Create the skill using fallback data
+                    const skill = {
+                        name: skillData.name,
+                        effect: createSkillEffect(
+                            skillData.type,
+                            elements[skillData.element].color,
+                            skillData.damage,
+                            skillData.spCost,
+                            skillData.element,
+                            skillData.name,
+                            isDodgeSkill,
+                            skillData.cooldownMs
+                        ),
+                        description: generateTechnicalDescription(skillData, isDodgeSkill),
+                        damage: skillData.damage,
+                        element: skillData.element,
+                        spCost: skillData.spCost,
+                        cooldownMs: skillData.cooldownMs,
+                        isDodgeSkill: isDodgeSkill,
+                        powerLevel: skillData.powerLevel
+                    };
+
+                    skills.push(skill);
+                    updateSkillList();
+                    skillInput.value = '';
                 }
-
-                // Validate and adjust AI values based on skill type
-                const isDodgeSkill = prompt.toLowerCase().includes('dodge') || 
-                                   prompt.toLowerCase().includes('evade') || 
-                                   prompt.toLowerCase().includes('avoid');
-
-                skillData = {
-                    name: String(skillData.name || prompt).slice(0, 50),
-                    type: ['ranged', 'melee'].includes(skillData.type) ? skillData.type : 'ranged',
-                    element: elements[skillData.element] ? skillData.element : 'neutral',
-                    color: String(skillData.color || elements[skillData.element || 'neutral'].color),
-                    damage: isDodgeSkill ? 0 : Number(skillData.damage),
-                    spCost: isDodgeSkill ? Math.min(15, Math.floor(Number(skillData.spCost) * 0.3)) : Number(skillData.spCost),
-                    cooldownMs: Number(skillData.cooldownMs),
-                    description: isDodgeSkill 
-                        ? `A defensive maneuver that grants temporary invulnerability for 1 second.`
-                        : String(skillData.description),
-                    powerLevel: String(skillData.powerLevel || "medium"),
-                    hasStatusEffect: Boolean(skillData.hasStatusEffect),
-                    isAoE: Boolean(skillData.isAoE),
-                    utilityValue: Number(skillData.utilityValue || 0)
-                };
-
-                // Create the skill object
-                const skill = {
-                    name: skillData.name,
-                    effect: createSkillEffect(
-                        skillData.type, 
-                        skillData.color, 
-                        skillData.damage, 
-                        skillData.spCost, 
-                        skillData.element, 
-                        skillData.name,
-                        isDodgeSkill,
-                        skillData.cooldownMs
-                    ),
-                    description: generateTechnicalDescription(skillData, isDodgeSkill),
-                    damage: skillData.damage,
-                    element: skillData.element,
-                    spCost: skillData.spCost,
-                    cooldownMs: skillData.cooldownMs,
-                    isDodgeSkill: isDodgeSkill,
-                    powerLevel: skillData.powerLevel
-                };
-
-                // Add the skill to the skills array
-                skills.push(skill);
-                updateSkillList();
-                skillInput.value = '';
-
             } catch (error) {
                 console.error('Error creating skill:', error);
+                errorDiv.textContent = `❌ Error: ${error.message}`;
+                errorDiv.style.display = 'block';
+                setTimeout(() => errorDiv.style.display = 'none', 3000);
+            } finally {
+                loadingDiv.remove();
             }
         }
 
@@ -1470,14 +1691,51 @@
                 skillHeader.className = 'skill-header';
                 
                 const button = document.createElement('button');
-                const shortcutKey = index + 1;
                 
                 const nameSpan = document.createElement('span');
                 nameSpan.textContent = skill.name;
                 
                 const shortcutSpan = document.createElement('span');
                 shortcutSpan.className = 'skill-shortcut';
-                shortcutSpan.textContent = `[${shortcutKey}]`;
+                const binding = keyBindings[`skill${index + 1}`];
+                shortcutSpan.textContent = `[${binding.display}]`;
+                
+                // Add click handler for shortcut rebinding
+                shortcutSpan.addEventListener('click', (event) => {
+                    event.stopPropagation(); // Prevent triggering the skill
+                    
+                    // Reset any other shortcuts
+                    document.querySelectorAll('.skill-shortcut').forEach(s => {
+                        s.classList.remove('listening');
+                    });
+                    
+                    // Set up listening state
+                    isListeningForKey = true;
+                    currentBindingSkill = `skill${index + 1}`;
+                    shortcutSpan.classList.add('listening');
+                    
+                    // Show tooltip near the shortcut
+                    const rect = shortcutSpan.getBoundingClientRect();
+                    shortcutTooltip.style.display = 'block';
+                    shortcutTooltip.style.left = `${rect.left}px`;
+                    shortcutTooltip.style.top = `${rect.top - 40}px`;
+                    
+                    // Add temporary event listener
+                    document.addEventListener('keydown', handleKeyBinding);
+                    
+                    // Cancel listening if clicked elsewhere
+                    const cancelListener = (e) => {
+                        if (!shortcutSpan.contains(e.target)) {
+                            isListeningForKey = false;
+                            currentBindingSkill = null;
+                            shortcutSpan.classList.remove('listening');
+                            shortcutTooltip.style.display = 'none';
+                            document.removeEventListener('keydown', handleKeyBinding);
+                            document.removeEventListener('click', cancelListener);
+                        }
+                    };
+                    document.addEventListener('click', cancelListener);
+                });
                 
                 button.appendChild(nameSpan);
                 button.appendChild(shortcutSpan);
@@ -1489,7 +1747,7 @@
                 removeButton.className = 'remove-skill';
                 removeButton.textContent = '✕';
                 removeButton.onclick = (e) => {
-                    e.stopPropagation(); // Prevent triggering the skill
+                    e.stopPropagation();
                     skills.splice(index, 1);
                     updateSkillList();
                 };
@@ -1608,6 +1866,195 @@
 
         // Start potion spawn check every second
         setInterval(spawnPotion, 1000);
+
+        // Add after character creation
+        let keyBindings = {
+            skill1: { key: '1', display: '1' },
+            skill2: { key: '2', display: '2' },
+            skill3: { key: '3', display: '3' },
+            skill4: { key: '4', display: '4' }
+        };
+
+        // Add to localStorage initialization with new format
+        if (!localStorage.getItem('keyBindings')) {
+            localStorage.setItem('keyBindings', JSON.stringify(keyBindings));
+        } else {
+            keyBindings = JSON.parse(localStorage.getItem('keyBindings'));
+        }
+
+        let isListeningForKey = false;
+        let currentBindingSkill = null;
+
+        // Create tooltip element
+        const shortcutTooltip = document.createElement('div');
+        shortcutTooltip.className = 'shortcut-tooltip';
+        shortcutTooltip.textContent = 'Click to change shortcut...';
+        document.body.appendChild(shortcutTooltip);
+
+        function getKeyDisplay(event) {
+            if (event.key === ' ') return 'SPACE';
+            if (event.key === 'Meta') return '⌘';
+            if (event.key === 'Alt') return 'Alt';
+            if (event.key === 'Control') return 'Ctrl';
+            if (event.key === 'Shift') return '⇧';
+            return event.key.toUpperCase();
+        }
+
+        function updateKeyBindDisplay() {
+            document.querySelectorAll('.skill-shortcut').forEach((shortcut, index) => {
+                const skillNum = index + 1;
+                const binding = keyBindings[`skill${skillNum}`];
+                shortcut.textContent = `[${binding.display}]`;
+            });
+        }
+
+        function handleKeyBinding(event) {
+            if (!isListeningForKey || !currentBindingSkill) return;
+            
+            event.preventDefault();
+            
+            const key = event.key.toLowerCase();
+            
+            // Check for reserved movement keys
+            const reservedKeys = ['w', 'a', 's', 'd'];
+            if (reservedKeys.includes(key)) {
+                // Show warning message
+                const warning = document.createElement('div');
+                warning.className = 'warning-message';
+                warning.textContent = `Cannot bind movement key "${key.toUpperCase()}"!`;
+                warning.style.left = shortcutTooltip.style.left;
+                warning.style.top = shortcutTooltip.style.top;
+                document.body.appendChild(warning);
+                
+                // Remove warning after animation
+                setTimeout(() => warning.remove(), 2000);
+                
+                return;
+            }
+            
+            // Get the key display and actual key value
+            const display = getKeyDisplay(event);
+            
+            // Remove old binding
+            Object.keys(keyBindings).forEach(skill => {
+                if (keyBindings[skill].key === key) {
+                    keyBindings[skill] = { key: '', display: '' };
+                }
+            });
+            
+            // Set new binding
+            keyBindings[currentBindingSkill] = {
+                key: key,
+                display: display
+            };
+            
+            // Save to localStorage
+            localStorage.setItem('keyBindings', JSON.stringify(keyBindings));
+            
+            // Update displays
+            updateKeyBindDisplay();
+            
+            // Reset listening state
+            isListeningForKey = false;
+            currentBindingSkill = null;
+            document.querySelectorAll('.skill-shortcut').forEach(shortcut => {
+                shortcut.classList.remove('listening');
+            });
+            shortcutTooltip.style.display = 'none';
+            
+            // Remove the temporary event listener
+            document.removeEventListener('keydown', handleKeyBinding);
+        }
+
+        // Initialize key bindings display
+        document.addEventListener('DOMContentLoaded', () => {
+            updateKeyBindDisplay();
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (isBindingKey) {
+                event.preventDefault();
+                
+                // Check for WASD and modifier combinations
+                const movementKeys = ['w', 'a', 's', 'd'];
+                const isMovementKey = movementKeys.includes(event.key.toLowerCase());
+                const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
+
+                if (isMovementKey || (hasModifier && isMovementKey)) {
+                    const modifierText = hasModifier ? 
+                        `${event.ctrlKey ? 'Ctrl+' : ''}${event.metaKey ? 'Cmd+' : ''}${event.altKey ? 'Alt+' : ''}` : '';
+                    
+                    showWarningMessage(`Cannot bind ${modifierText}${event.key.toUpperCase()} - Reserved for movement!`);
+                    return;
+                }
+
+                // Get the key display value
+                let keyDisplay = event.key;
+                if (event.key === ' ') keyDisplay = 'Space';
+                if (event.key.length === 1) keyDisplay = event.key.toUpperCase();
+                
+                // Update the key binding
+                const skillId = currentBindingSkill;
+                keyBindings[skillId] = {
+                    key: event.key,
+                    display: keyDisplay
+                };
+                
+                // Update the display and save
+                document.querySelector(`[data-skill-id="${skillId}"] .shortcut`).textContent = keyDisplay;
+                localStorage.setItem('keyBindings', JSON.stringify(keyBindings));
+                
+                isBindingKey = false;
+                currentBindingSkill = null;
+                return;
+            }
+
+            // Handle normal key press for skills
+            if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+                handleSkillKeyPress(event.key);
+            }
+        });
+
+        // Helper function to show warning message
+        function showWarningMessage(message) {
+            const warningMessage = document.createElement('div');
+            warningMessage.className = 'warning-message';
+            warningMessage.textContent = message;
+            warningMessage.style.top = '50%';
+            warningMessage.style.left = '50%';
+            warningMessage.style.transform = 'translate(-50%, -50%)';
+            document.body.appendChild(warningMessage);
+            
+            setTimeout(() => {
+                warningMessage.remove();
+            }, 2000);
+        }
+
+        if (playerStats.experience >= playerStats.experienceToNextLevel) {
+            playerStats.level++;
+            playerStats.experience = 0;
+            playerStats.experienceToNextLevel = Math.floor(playerStats.experienceToNextLevel * 1.5);
+            
+            // Restore HP/SP on level up
+            playerStats.hp = playerStats.maxHp;
+            playerStats.sp = playerStats.maxSp;
+
+            // Show floating level up text
+            const levelUpText = document.createElement('div');
+            levelUpText.className = 'floating-text level-up';
+            levelUpText.textContent = `Level Up! ${playerStats.level}`;
+            levelUpText.style.position = 'absolute';
+            levelUpText.style.left = `${character.offsetLeft + character.offsetWidth / 2}px`;
+            levelUpText.style.top = `${character.offsetTop - 20}px`;
+            document.getElementById('gameArea').appendChild(levelUpText);
+
+            // Remove the text after animation
+            setTimeout(() => {
+                levelUpText.remove();
+            }, 2000);
+
+            updateStats();
+        }
     </script>
 </body>
 </html>
