@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My AI Skill Game with Ollama</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+        }
+        #gameArea {
+            width: 600px;
+            height: 400px;
+            border: 2px solid black;
+            background: lightgray;
+            position: relative;
+            overflow: hidden;
+        }
+        #character {
+            width: 50px;
+            height: 50px;
+            background: blue;
+            border-radius: 50%;
+            position: absolute;
+            top: 175px;
+            left: 275px;
+        }
+        #rangedBall {
+            width: 20px;
+            height: 20px;
+            background: red;
+            border-radius: 50%;
+            position: absolute;
+            display: none;
+        }
+        #dummy {
+            width: 50px;
+            height: 50px;
+            background: red;
+            border-radius: 50%;
+            position: absolute;
+            top: 175px;
+            left: 450px;
+            text-align: center;
+            line-height: 50px;
+            color: white;
+        }
+        #skillInput {
+            margin-top: 10px;
+            width: 300px;
+        }
+        #skillList {
+            margin-top: 10px;
+            width: 300px;
+            position: relative;
+        }
+        .skill {
+            margin-bottom: 10px;
+            position: relative;
+            background: rgba(0, 0, 0, 0.05);
+            padding: 2px;
+            border-radius: 5px;
+        }
+        .skill button {
+            width: calc(100%);
+            padding: 15px;
+            margin-bottom: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .skill-shortcut {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 3px 8px;
+            border-radius: 3px;
+            margin-left: 8px;
+            font-size: 0.9em;
+        }
+        .skill-description {
+            font-size: 12px;
+            white-space: pre-line;
+            line-height: 1.4;
+            padding: 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.9);
+            display: none;
+        }
+        .skill:hover .skill-description {
+            display: block;
+            position: absolute;
+            left: 100%;
+            top: 0;
+            width: 300px;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-left: 10px;
+        }
+        .element-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: white;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        .technical-details {
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+        }
+        #statsPanel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 2px 0;
+        }
+        .stat-button {
+            width: 20px;
+            height: 20px;
+            margin-left: 5px;
+            display: none;
+        }
+        #expBar {
+            width: 100px;
+            height: 10px;
+            background: #333;
+            margin-top: 5px;
+        }
+        #expFill {
+            width: 0%;
+            height: 100%;
+            background: #00ff00;
+        }
+        #hpSpBar {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .bar {
+            width: 100px;
+            height: 10px;
+            margin: 5px 0;
+        }
+        #hpBar {
+            background: #333;
+        }
+        #hpFill {
+            width: 100%;
+            height: 100%;
+            background: #ff0000;
+        }
+        #spBar {
+            background: #333;
+        }
+        #spFill {
+            width: 100%;
+            height: 100%;
+            background: #0000ff;
+        }
+        .combat-text {
+            position: absolute;
+            font-weight: bold;
+            animation: floatUp 1.5s ease-out forwards;
+            text-shadow: 0px 0px 3px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+            z-index: 1000;
+        }
+        .skill-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 170%;
+            gap: 8px;
+        }
+        .remove-skill {
+            background: none;
+            color: #ff4444;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            font-size: 40px;
+            font-weight: bold;
+            width: fit-content;
+            height: fit-content;
+            min-width: 0;
+            display: inline;
+        }
+        .remove-skill:hover {
+            color: #ff0000;
+        }
+        .potion {
+            width: 20px;
+            height: 20px;
+            position: absolute;
+            border-radius: 50%;
+            cursor: pointer;
+            animation: pulse 1s infinite;
+            z-index: 100;
+        }
+        .hp-potion {
+            background: radial-gradient(circle at 30% 30%, #ff6b6b, #ff0000);
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        }
+        .sp-potion {
+            background: radial-gradient(circle at 30% 30%, #6b88ff, #0000ff);
+            box-shadow: 0 0 10px rgba(0, 0, 255, 0.5);
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes floatUp {
+            0% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameArea">
+        <div id="statsPanel">
+            <div>Level: <span id="levelDisplay">1</span></div>
+            <div>Stat Points: <span id="statPoints">0</span></div>
+            <div id="expBar"><div id="expFill"></div></div>
+            <div class="stat-row">
+                STR: <span id="strStat">1</span><button class="stat-button" onclick="addStat('str')">+</button>
+            </div>
+            <div class="stat-row">
+                AGI: <span id="agiStat">1</span><button class="stat-button" onclick="addStat('agi')">+</button>
+            </div>
+            <div class="stat-row">
+                DEX: <span id="dexStat">1</span><button class="stat-button" onclick="addStat('dex')">+</button>
+            </div>
+            <div class="stat-row">
+                INT: <span id="intStat">1</span><button class="stat-button" onclick="addStat('int')">+</button>
+            </div>
+            <div class="stat-row">
+                VIT: <span id="vitStat">1</span><button class="stat-button" onclick="addStat('vit')">+</button>
+            </div>
+            <div class="stat-row">
+                LUK: <span id="lukStat">1</span><button class="stat-button" onclick="addStat('luk')">+</button>
+            </div>
+        </div>
+        <div id="hpSpBar">
+            <div>HP: <span id="hpDisplay">100/100</span></div>
+            <div class="bar" id="hpBar"><div id="hpFill"></div></div>
+            <div>SP: <span id="spDisplay">50/50</span></div>
+            <div class="bar" id="spBar"><div id="spFill"></div></div>
+        </div>
+        <div id="character"></div>
+        <div id="rangedBall"></div>
+        <div id="dummy">100</div>
+    </div>
+    <input type="text" id="skillInput" placeholder="Type a skill (e.g., 'shoot a fire ball')">
+    <button onclick="createSkill()">Summon Skill</button>
+    <button onclick="resetDummy()">Reset Dummy</button>
+    <div id="skillList"></div>
+
+    <script>
+        const character = document.getElementById('character');
+        const rangedBall = document.getElementById('rangedBall');
+        const dummy = document.getElementById('dummy');
+        const skillInput = document.getElementById('skillInput');
+        const skillList = document.getElementById('skillList');
+        let charX = 275;
+        let charY = 175;
+        let dummyHealth = 100;
+        let skills = [];
+
+        // RPG System Variables
+        let playerStats = {
+            level: 1,
+            exp: 0,
+            statPoints: 0,
+            str: 1,
+            agi: 1,
+            dex: 1,
+            int: 1,
+            vit: 1,
+            luk: 1,
+            hp: 100,
+            maxHp: 100,
+            sp: 50,
+            maxSp: 50,
+            skillCooldown: false,
+            lastSpRegen: Date.now() // Add timestamp for SP regeneration
+        };
+
+        // Element system
+        const elements = {
+            neutral: { 
+                name: "Neutral", 
+                color: "gray", 
+                strongAgainst: [], 
+                weakAgainst: [],
+                gradient: "linear-gradient(45deg, #808080, #A0A0A0)",
+                textColor: "#FFFFFF",
+                particleColor: "#C0C0C0",
+                description: "Basic non-elemental force"
+            },
+            fire: { 
+                name: "Fire", 
+                color: "orange", 
+                strongAgainst: ["earth", "undead"], 
+                weakAgainst: ["water", "poison"],
+                gradient: "linear-gradient(45deg, #FF4500, #FF8C00)",
+                textColor: "#FFFFFF",
+                particleColor: "#FFD700",
+                description: "Burning flames that consume all"
+            },
+            water: { 
+                name: "Water", 
+                color: "blue", 
+                strongAgainst: ["fire"], 
+                weakAgainst: ["wind", "earth"],
+                gradient: "linear-gradient(45deg, #00BFFF, #1E90FF)",
+                textColor: "#FFFFFF",
+                particleColor: "#87CEEB",
+                description: "Flowing water that extinguishes flames"
+            },
+            wind: { 
+                name: "Wind", 
+                color: "lightgreen", 
+                strongAgainst: ["water"], 
+                weakAgainst: ["earth", "poison"],
+                gradient: "linear-gradient(45deg, #90EE90, #98FB98)",
+                textColor: "#000000",
+                particleColor: "#F0FFF0",
+                description: "Swift winds that cut through water"
+            },
+            earth: { 
+                name: "Earth", 
+                color: "brown", 
+                strongAgainst: ["wind"], 
+                weakAgainst: ["fire"],
+                gradient: "linear-gradient(45deg, #8B4513, #A0522D)",
+                textColor: "#FFFFFF",
+                particleColor: "#DEB887",
+                description: "Solid earth that grounds the wind"
+            },
+            poison: { 
+                name: "Poison", 
+                color: "purple", 
+                strongAgainst: ["neutral"], 
+                weakAgainst: ["wind"],
+                gradient: "linear-gradient(45deg, #800080, #9400D3)",
+                textColor: "#FFFFFF",
+                particleColor: "#DA70D6",
+                description: "Toxic essence that corrupts life"
+            },
+            holy: { 
+                name: "Holy", 
+                color: "yellow", 
+                strongAgainst: ["undead", "shadow"], 
+                weakAgainst: ["shadow"],
+                gradient: "linear-gradient(45deg, #FFD700, #FFFF00)",
+                textColor: "#000000",
+                particleColor: "#FFFACD",
+                description: "Divine light that banishes darkness"
+            },
+            shadow: { 
+                name: "Shadow", 
+                color: "darkviolet", 
+                strongAgainst: ["holy"], 
+                weakAgainst: ["holy"],
+                gradient: "linear-gradient(45deg, #483D8B, #4B0082)",
+                textColor: "#FFFFFF",
+                particleColor: "#9370DB",
+                description: "Dark forces that corrupt light"
+            },
+            undead: { 
+                name: "Undead", 
+                color: "darkgray", 
+                strongAgainst: ["neutral"], 
+                weakAgainst: ["fire", "holy"],
+                gradient: "linear-gradient(45deg, #696969, #808080)",
+                textColor: "#FFFFFF",
+                particleColor: "#A9A9A9",
+                description: "Unholy power that defies life"
+            }
+        };
+
+        let dummyElement = "neutral";
+
+        // Add element selector for dummy
+        function addElementSelector() {
+            const selector = document.createElement('select');
+            selector.id = 'dummyElement';
+            selector.style.marginLeft = '10px';
+            for (const [key, value] of Object.entries(elements)) {
+                const option = document.createElement('option');
+                option.value = key;
+                option.text = value.name;
+                selector.appendChild(option);
+            }
+            selector.onchange = (e) => {
+                dummyElement = e.target.value;
+                dummy.style.background = elements[dummyElement].color;
+            };
+            const resetButton = document.querySelector('button[onclick="resetDummy()"]');
+            resetButton.parentNode.insertBefore(selector, resetButton.nextSibling);
+        }
+
+        // Calculate elemental damage modifier
+        function calculateElementalModifier(attackElement, targetElement) {
+            // Same element penalty (25% reduction)
+            if (attackElement === targetElement) {
+                return 0.75;
+            }
+
+            // Element advantages based on Ragnarok Online system
+            const elementAdvantages = {
+                fire: { water: 0.5, earth: 1.5, undead: 1.5, poison: 0.5 },
+                water: { fire: 1.5, wind: 0.5, earth: 0.5 },
+                wind: { water: 1.5, earth: 0.5, poison: 0.5 },
+                earth: { wind: 1.5, fire: 0.5, poison: 0.5 },
+                poison: { earth: 1.5, wind: 1.5, fire: 1.5 },
+                holy: { undead: 2.0, shadow: 1.25, demon: 1.5 },
+                shadow: { holy: 1.25, ghost: 1.5 },
+                undead: { fire: 0.5, poison: 0.5, holy: 0.5 },
+                neutral: {} // Neutral has no advantages or disadvantages
+            };
+
+            // Check if there's an advantage defined
+            if (elementAdvantages[attackElement]?.[targetElement]) {
+                return elementAdvantages[attackElement][targetElement];
+            }
+
+            // Default case - no special relationship
+            return 1.0;
+        }
+
+        // Experience needed for each level (Ragnarok Online-like progression)
+        function expForLevel(level) {
+            if (level <= 1) return 0;
+            return Math.floor(Math.pow(level - 1, 3) + 100);
+        }
+
+        // Update all displays
+        function updateDisplays() {
+            document.getElementById('levelDisplay').textContent = playerStats.level;
+            document.getElementById('statPoints').textContent = playerStats.statPoints;
+            document.getElementById('strStat').textContent = playerStats.str;
+            document.getElementById('agiStat').textContent = playerStats.agi;
+            document.getElementById('dexStat').textContent = playerStats.dex;
+            document.getElementById('intStat').textContent = playerStats.int;
+            document.getElementById('vitStat').textContent = playerStats.vit;
+            document.getElementById('lukStat').textContent = playerStats.luk;
+            
+            // Update HP/SP displays with SP rounded to 3 decimal places
+            document.getElementById('hpDisplay').textContent = `${playerStats.hp}/${playerStats.maxHp}`;
+            document.getElementById('spDisplay').textContent = `${playerStats.sp.toFixed(3)}/${playerStats.maxSp}`;
+            document.getElementById('hpFill').style.width = `${(playerStats.hp / playerStats.maxHp) * 100}%`;
+            document.getElementById('spFill').style.width = `${(playerStats.sp / playerStats.maxSp) * 100}%`;
+            
+            // Update exp bar
+            const expNeeded = expForLevel(playerStats.level + 1) - expForLevel(playerStats.level);
+            const currentExp = playerStats.exp - expForLevel(playerStats.level);
+            const expPercentage = (currentExp / expNeeded) * 100;
+            document.getElementById('expFill').style.width = `${expPercentage}%`;
+
+            // Show/hide stat buttons
+            const buttons = document.getElementsByClassName('stat-button');
+            for (let button of buttons) {
+                button.style.display = playerStats.statPoints > 0 ? 'inline' : 'none';
+            }
+        }
+
+        // Add stat point
+        function addStat(stat) {
+            if (playerStats.statPoints > 0) {
+                playerStats[stat]++;
+                playerStats.statPoints--;
+                
+                // Update derived stats
+                if (stat === 'vit') {
+                    playerStats.maxHp = 100 + (playerStats.vit * 20);
+                    playerStats.hp = playerStats.maxHp;
+                }
+                if (stat === 'int') {
+                    playerStats.maxSp = 50 + (playerStats.int * 10);
+                    playerStats.sp = playerStats.maxSp;
+                }
+                
+                updateDisplays();
+            }
+        }
+
+        // Gain experience and handle level up
+        function gainExp(amount) {
+            playerStats.exp += amount;
+            while (playerStats.exp >= expForLevel(playerStats.level + 1)) {
+                playerStats.level++;
+                playerStats.statPoints += 3; // 3 stat points per level
+                // Restore HP/SP on level up
+                playerStats.hp = playerStats.maxHp;
+                playerStats.sp = playerStats.maxSp;
+                alert(`Level Up! You are now level ${playerStats.level}!`);
+            }
+            updateDisplays();
+        }
+
+        // Modified createSkillEffect to include stats and skill name
+        function createSkillEffect(type, color, damage, spCost, element, skillName) {
+            return () => {
+                if (playerStats.skillCooldown || playerStats.sp < spCost) {
+                    // Create floating text for error message
+                    const errorText = document.createElement('div');
+                    errorText.className = 'combat-text';
+                    errorText.style.left = (charX + 25) + 'px';
+                    errorText.style.top = (charY - 20) + 'px';
+                    errorText.style.color = '#ff4444';
+                    errorText.style.fontSize = '14px';
+                    errorText.textContent = playerStats.skillCooldown ? "Cooldown!" : "Not enough SP!";
+                    document.getElementById('gameArea').appendChild(errorText);
+                    
+                    // Remove the element after animation completes
+                    setTimeout(() => errorText.remove(), 1500);
+                    return;
+                }
+
+                // Apply stat and elemental effects
+                const strBonus = type === 'melee' ? (playerStats.str * 0.1) : 0;
+                const intBonus = type === 'ranged' ? (playerStats.int * 0.1) : 0;
+                const lukBonus = Math.random() < (playerStats.luk * 0.01);
+                const elementalMod = calculateElementalModifier(element, dummyElement);
+                const finalDamage = Math.floor(damage * (1 + strBonus + intBonus) * (lukBonus ? 2 : 1) * elementalMod);
+
+                // Rest of the effect code...
+                playerStats.sp -= spCost;
+                updateDisplays();
+
+                // Show skill name above player when skill is used
+                const skillNameText = document.createElement('div');
+                skillNameText.className = 'combat-text';
+                skillNameText.style.position = 'absolute';
+                skillNameText.style.left = (charX + 25) + 'px';
+                skillNameText.style.top = (charY - 40) + 'px';
+                skillNameText.style.background = elements[element].gradient;
+                skillNameText.style.color = elements[element].textColor;
+                skillNameText.style.padding = '4px 8px';
+                skillNameText.style.borderRadius = '4px';
+                skillNameText.style.fontWeight = 'bold';
+                skillNameText.style.fontSize = '16px';
+                skillNameText.textContent = skillName;
+                document.getElementById('gameArea').appendChild(skillNameText);
+                setTimeout(() => skillNameText.remove(), 1500);
+
+                const cooldownTime = Math.max(1000 - (playerStats.agi * 50), 200);
+                playerStats.skillCooldown = true;
+                setTimeout(() => {
+                    playerStats.skillCooldown = false;
+                }, cooldownTime);
+
+                if (type === 'ranged') {
+                    const ballSize = 20 + (playerStats.dex * 2);
+                    rangedBall.style.width = `${ballSize}px`;
+                    rangedBall.style.height = `${ballSize}px`;
+                    rangedBall.style.background = elements[element].gradient;
+                    rangedBall.style.boxShadow = `0 0 10px ${elements[element].particleColor}`;
+                    rangedBall.style.display = 'block';
+                    let ballX = charX + 50;
+                    let ballY = charY + 15;
+                    rangedBall.style.left = ballX + 'px';
+                    rangedBall.style.top = ballY + 'px';
+
+                    const moveBall = setInterval(() => {
+                        ballX += 10;
+                        if (ballX >= 450 && ballX <= 500 && ballY >= 175 && ballY <= 225) {
+                            dummyHealth -= finalDamage;
+                            if (dummyHealth < 0) dummyHealth = 0;
+                            dummy.textContent = dummyHealth;
+                            if (dummyHealth === 0) {
+                                gainExp(50);
+                            }
+
+                            // Show damage text when projectile hits
+                            const damageText = document.createElement('div');
+                            damageText.className = 'combat-text';
+                            damageText.style.position = 'absolute';
+                            damageText.style.left = '470px';
+                            damageText.style.top = '150px';
+                            damageText.style.background = elements[element].gradient;
+                            damageText.style.color = elements[element].textColor;
+                            damageText.style.padding = '4px 8px';
+                            damageText.style.borderRadius = '4px';
+                            damageText.style.fontWeight = 'bold';
+                            damageText.style.fontSize = '20px';
+                            damageText.textContent = finalDamage + (lukBonus ? ' CRIT!' : '');
+                            document.getElementById('gameArea').appendChild(damageText);
+                            setTimeout(() => damageText.remove(), 1500);
+
+                            clearInterval(moveBall);
+                            rangedBall.style.display = 'none';
+                        } else if (ballX > 600) {
+                            // Show "Miss!" text if projectile goes off screen
+                            const missText = document.createElement('div');
+                            missText.className = 'combat-text';
+                            missText.style.left = '470px';
+                            missText.style.top = '150px';
+                            missText.style.color = '#ff4444';
+                            missText.style.fontSize = '14px';
+                            missText.textContent = "Miss!";
+                            document.getElementById('gameArea').appendChild(missText);
+                            setTimeout(() => missText.remove(), 1500);
+
+                            clearInterval(moveBall);
+                            rangedBall.style.display = 'none';
+                        } else {
+                            rangedBall.style.left = ballX + 'px';
+                        }
+                    }, 50);
+                } else {
+                    character.style.background = elements[element].gradient;
+                    character.style.boxShadow = `0 0 10px ${elements[element].particleColor}`;
+                    // Calculate distance to dummy
+                    const dummyX = 450;  // dummy's X position
+                    const dummyY = 175;  // dummy's Y position
+                    const distance = Math.sqrt(Math.pow(charX - dummyX, 2) + Math.pow(charY - dummyY, 2));
+                    
+                    // Only deal damage if within melee range (70 pixels)
+                    if (distance <= 70) {
+                        dummyHealth -= finalDamage;
+                        if (dummyHealth < 0) dummyHealth = 0;
+                        dummy.textContent = dummyHealth;
+                        if (dummyHealth === 0) {
+                            gainExp(50);
+                        }
+                        
+                        // Only show damage text if we actually hit
+                        const damageText = document.createElement('div');
+                        damageText.className = 'combat-text';
+                        damageText.style.position = 'absolute';
+                        damageText.style.left = '470px';
+                        damageText.style.top = '150px';
+                        damageText.style.background = elements[element].gradient;
+                        damageText.style.color = elements[element].textColor;
+                        damageText.style.padding = '4px 8px';
+                        damageText.style.borderRadius = '4px';
+                        damageText.style.fontWeight = 'bold';
+                        damageText.style.fontSize = '20px';
+                        damageText.textContent = finalDamage + (lukBonus ? ' CRIT!' : '');
+                        document.getElementById('gameArea').appendChild(damageText);
+                        setTimeout(() => damageText.remove(), 1500);
+                    } else {
+                        // Show "Miss!" message if not in range
+                        const missText = document.createElement('div');
+                        missText.className = 'combat-text';
+                        missText.style.left = (charX + 25) + 'px';
+                        missText.style.top = (charY - 20) + 'px';
+                        missText.style.color = '#ff4444';
+                        missText.style.fontSize = '14px';
+                        missText.textContent = "Miss!";
+                        document.getElementById('gameArea').appendChild(missText);
+                        setTimeout(() => missText.remove(), 1500);
+                    }
+                    setTimeout(() => {
+                        character.style.background = 'blue';
+                        character.style.boxShadow = 'none';
+                    }, 200);
+                }
+            };
+        }
+
+        // Modified resetDummy to restore some SP
+        function resetDummy() {
+            dummyHealth = 100;
+            dummy.textContent = dummyHealth;
+            playerStats.sp = Math.min(playerStats.maxSp, playerStats.sp + 20); // Restore some SP
+            updateDisplays();
+        }
+
+        // Track pressed keys for smooth movement
+        const pressedKeys = new Set();
+        const moveSpeed = 5; // Adjust movement speed
+
+        // Move character based on pressed keys
+        function updateCharacterPosition() {
+            // Diagonal movement should not be faster than cardinal movement
+            let dx = 0;
+            let dy = 0;
+
+            if (pressedKeys.has('w')) dy -= 1;
+            if (pressedKeys.has('s')) dy += 1;
+            if (pressedKeys.has('a')) dx -= 1;
+            if (pressedKeys.has('d')) dx += 1;
+
+            // Normalize diagonal movement
+            if (dx !== 0 && dy !== 0) {
+                dx *= 0.707; // Math.cos(45 degrees)
+                dy *= 0.707; // Math.sin(45 degrees)
+            }
+
+            // Update position with boundary checking
+            const newX = charX + dx * moveSpeed;
+            const newY = charY + dy * moveSpeed;
+
+            if (newX >= 0 && newX <= 550) charX = newX;
+            if (newY >= 0 && newY <= 350) charY = newY;
+
+            character.style.left = charX + 'px';
+            character.style.top = charY + 'px';
+        }
+
+        // Start movement loop
+        const movementLoop = setInterval(updateCharacterPosition, 16); // ~60fps
+
+        // Handle keydown
+        document.addEventListener('keydown', (event) => {
+            const key = event.key.toLowerCase();
+            // Only handle WASD if we're not typing in the input field
+            if (['w', 'a', 's', 'd'].includes(key) && document.activeElement !== skillInput) {
+                pressedKeys.add(key);
+                event.preventDefault(); // Prevent scrolling
+            }
+            // Handle skill shortcuts (1-4) regardless of input focus
+            if (key >= '1' && key <= '4') {
+                const skillIndex = parseInt(key) - 1;
+                if (skillIndex < skills.length) {
+                    skills[skillIndex].effect();
+                }
+            }
+        });
+
+        // Handle keyup
+        document.addEventListener('keyup', (event) => {
+            const key = event.key.toLowerCase();
+            if (['w', 'a', 's', 'd'].includes(key)) {
+                pressedKeys.delete(key);
+            }
+        });
+
+        // Clean up movement loop when window loses focus
+        window.addEventListener('blur', () => {
+            pressedKeys.clear();
+        });
+
+        // Create a skill by calling Ollama
+        async function createSkill() {
+            const prompt = skillInput.value.trim();
+            if (!prompt) return;
+
+            try {
+                const response = await fetch('http://localhost:11434/api/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'llama3',
+                        prompt: `You are a game skill creator. Create a skill based on this description: "${prompt}". Return ONLY a JSON object with these exact fields and nothing else:
+{
+    "name": "skill name here",
+    "type": "ranged or melee",
+    "element": "one of: neutral, fire, water, wind, earth, poison, holy, shadow, undead",
+    "color": "color name here",
+    "damage": number between 10-30,
+    "spCost": number between 10-50,
+    "description": "skill description here"
+}`,
+                        stream: false
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const data = await response.json();
+                console.log('Ollama response:', data.response); // For debugging
+
+                let skillData;
+                try {
+                    // Try to extract JSON from the response
+                    const jsonMatch = data.response.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        skillData = JSON.parse(jsonMatch[0]);
+                    } else {
+                        throw new Error('No JSON found in response');
+                    }
+                } catch (e) {
+                    console.log('Parsing error:', e);
+                    // Fallback with improved error handling
+                    const text = prompt.toLowerCase();
+                    skillData = {
+                        name: prompt.charAt(0).toUpperCase() + prompt.slice(1),
+                        type: text.includes('shoot') || text.includes('beam') || text.includes('ball') ? 'ranged' : 'melee',
+                        element: text.includes('fire') ? 'fire' : text.includes('ice') ? 'water' : text.includes('lightning') ? 'wind' : text.includes('poison') ? 'poison' : 'neutral',
+                        color: text.includes('fire') ? 'orange' : text.includes('ice') ? 'blue' : text.includes('lightning') ? 'lightgreen' : text.includes('poison') ? 'purple' : 'red',
+                        damage: Math.floor(Math.random() * 21) + 10,
+                        spCost: Math.floor(Math.random() * 41) + 10,
+                        description: generateWoWDescription(prompt)
+                    };
+                }
+
+                // Update skillData validation to include element
+                skillData = {
+                    name: String(skillData.name || prompt).slice(0, 50),
+                    type: ['ranged', 'melee'].includes(skillData.type) ? skillData.type : 'ranged',
+                    element: elements[skillData.element] ? skillData.element : 'neutral',
+                    color: String(skillData.color || elements[skillData.element || 'neutral'].color),
+                    damage: Math.max(10, Math.min(30, Number(skillData.damage) || 20)),
+                    spCost: Math.max(10, Math.min(50, Math.floor(Number(skillData.spCost) * 0.9) || 10)), // Reduce SP cost by 10%
+                    description: String(skillData.description || generateWoWDescription(prompt, skillData))
+                };
+
+                const skill = {
+                    name: skillData.name,
+                    effect: createSkillEffect(skillData.type, skillData.color, skillData.damage, skillData.spCost, skillData.element, skillData.name),
+                    description: generateTechnicalDescription(skillData),
+                    damage: skillData.damage,
+                    element: skillData.element,
+                    spCost: skillData.spCost
+                };
+
+                if (skills.length < 4) {
+                    skills.push(skill);
+                    updateSkillList();
+                } else {
+                    alert("You already have 4 skills! Use existing skills or reset the game to create new ones.");
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert("Couldn't create skill. Please try again or check if Ollama is running.");
+            }
+            skillInput.value = '';
+        }
+
+        // WoW-style fallback description
+        function generateWoWDescription(prompt) {
+            const text = prompt.toLowerCase();
+            if (text.includes('shoot') || text.includes('beam')) {
+                const element = text.includes('fire') ? 'flame' : text.includes('ice') ? 'frost' : 'energy';
+                return `Hurls a bolt of ${element} across the battlefield, striking the first foe in its path for ${Math.floor(Math.random() * 21) + 10} ${element.charAt(0).toUpperCase() + element.slice(1)} damage and leaving a shimmering echo of power in its wake.`;
+            } else {
+                const element = text.includes('fire') ? 'fiery' : text.includes('ice') ? 'glacial' : 'shadow';
+                return `Delivers a devastating ${element} strike with unyielding force, dealing ${Math.floor(Math.random() * 21) + 10} ${element.charAt(0).toUpperCase() + element.slice(1)} damage to enemies within reach and sundering their resolve with its sheer might.`;
+            }
+        }
+
+        // Generate technical description for skills
+        function generateTechnicalDescription(skillData) {
+            const element = elements[skillData.element];
+            const cooldownTime = Math.max(1000 - (playerStats.agi * 50), 200);
+            const cooldownSec = (cooldownTime / 1000).toFixed(1);
+            
+            return `<div class="element-tag" style="background: ${element.gradient}; color: ${element.textColor}">
+                        ${element.name}
+                    </div>
+                    ${skillData.description}
+                    
+                    <div class="technical-details">
+                        <strong>Technical Details:</strong>
+                        • Base Damage: ${skillData.damage}
+                        • SP Cost: ${skillData.spCost}
+                        • Cooldown: ${cooldownSec}s
+                        • Type: ${skillData.type.charAt(0).toUpperCase() + skillData.type.slice(1)}
+                        
+                        <strong>Element Properties:</strong>
+                        • ${element.description}
+                        • Strong vs: ${element.strongAgainst.length ? element.strongAgainst.map(e => elements[e].name).join(', ') : 'None'}
+                        • Weak vs: ${element.weakAgainst.length ? element.weakAgainst.map(e => elements[e].name).join(', ') : 'None'}
+                    </div>`;
+        }
+
+        // Show skills with descriptions
+        function updateSkillList() {
+            skillList.innerHTML = '';
+            skills.forEach((skill, index) => {
+                const skillDiv = document.createElement('div');
+                skillDiv.className = 'skill';
+                
+                const skillHeader = document.createElement('div');
+                skillHeader.className = 'skill-header';
+                
+                const button = document.createElement('button');
+                const shortcutKey = index + 1;
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = skill.name;
+                
+                const shortcutSpan = document.createElement('span');
+                shortcutSpan.className = 'skill-shortcut';
+                shortcutSpan.textContent = `[${shortcutKey}]`;
+                
+                button.appendChild(nameSpan);
+                button.appendChild(shortcutSpan);
+                button.style.background = elements[skill.element].gradient;
+                button.style.color = elements[skill.element].textColor;
+                button.onclick = skill.effect;
+                
+                const removeButton = document.createElement('button');
+                removeButton.className = 'remove-skill';
+                removeButton.textContent = '✕';
+                removeButton.onclick = (e) => {
+                    e.stopPropagation(); // Prevent triggering the skill
+                    skills.splice(index, 1);
+                    updateSkillList();
+                };
+                
+                skillHeader.appendChild(button);
+                skillHeader.appendChild(removeButton);
+                
+                const desc = document.createElement('div');
+                desc.className = 'skill-description';
+                desc.innerHTML = skill.description;
+                
+                skillDiv.appendChild(skillHeader);
+                skillDiv.appendChild(desc);
+                skillList.appendChild(skillDiv);
+            });
+        }
+
+        // Add SP regeneration function
+        function startSpRegeneration() {
+            setInterval(() => {
+                const now = Date.now();
+                const timePassed = now - playerStats.lastSpRegen;
+                
+                // Base SP regen per second (similar to RO's system)
+                const baseRegen = 1;
+                // INT bonus: Every 1 INT adds 0.2 SP per second
+                const intBonus = (playerStats.int - 1) * 0.2;
+                
+                // Calculate SP to regenerate based on time passed and round to 3 decimal places
+                const regenAmount = ((baseRegen + intBonus) * (timePassed / 1000));
+                
+                // Add SP and round to 3 decimal places
+                playerStats.sp = Math.min(playerStats.maxSp, Math.round((playerStats.sp + regenAmount) * 1000) / 1000);
+                playerStats.lastSpRegen = now;
+                
+                // Update displays
+                updateDisplays();
+            }, 100); // Update every 100ms for smooth regeneration
+        }
+
+        // Initialize displays and start SP regeneration
+        updateDisplays();
+        startSpRegeneration();
+
+        // Initialize element selector
+        addElementSelector();
+
+        // Potion system
+        let activePotion = null;
+        const POTION_SPAWN_CHANCE = 0.02; // 2% chance per second (increased from 0.5%)
+        const POTION_HEAL_AMOUNT = 50;
+        const POTION_SP_AMOUNT = 30;
+
+        function spawnPotion() {
+            if (activePotion) return; // Only one potion at a time
+            
+            if (Math.random() < POTION_SPAWN_CHANCE) {
+                const potion = document.createElement('div');
+                const isHpPotion = Math.random() < 0.3; // 30% chance for HP, 70% for SP
+                
+                potion.className = `potion ${isHpPotion ? 'hp-potion' : 'sp-potion'}`;
+                // Random position within game area bounds
+                const x = Math.floor(Math.random() * 550);
+                const y = Math.floor(Math.random() * 350);
+                
+                potion.style.left = x + 'px';
+                potion.style.top = y + 'px';
+                
+                potion.onclick = () => {
+                    if (isHpPotion) {
+                        playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + POTION_HEAL_AMOUNT);
+                        showPotionEffect(x, y, `+${POTION_HEAL_AMOUNT} HP`, '#ff6b6b');
+                    } else {
+                        playerStats.sp = Math.min(playerStats.maxSp, playerStats.sp + POTION_SP_AMOUNT);
+                        showPotionEffect(x, y, `+${POTION_SP_AMOUNT} SP`, '#6b88ff');
+                    }
+                    updateDisplays();
+                    document.getElementById('gameArea').removeChild(potion);
+                    activePotion = null;
+                };
+                
+                document.getElementById('gameArea').appendChild(potion);
+                activePotion = potion;
+                
+                // Remove potion after 10 seconds if not collected
+                setTimeout(() => {
+                    if (activePotion === potion) {
+                        if (potion.parentNode) {
+                            potion.parentNode.removeChild(potion);
+                        }
+                        activePotion = null;
+                    }
+                }, 10000);
+            }
+        }
+
+        function showPotionEffect(x, y, text, color) {
+            const effect = document.createElement('div');
+            effect.className = 'combat-text';
+            effect.style.left = x + 'px';
+            effect.style.top = y + 'px';
+            effect.style.color = color;
+            effect.style.fontSize = '16px';
+            effect.textContent = text;
+            document.getElementById('gameArea').appendChild(effect);
+            setTimeout(() => effect.remove(), 1500);
+        }
+
+        // Start potion spawn check every second
+        setInterval(spawnPotion, 1000);
+    </script>
+</body>
+</html>
