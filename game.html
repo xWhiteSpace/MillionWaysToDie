@@ -240,6 +240,15 @@
                 transform: translateY(-30px);
             }
         }
+
+        #dummy[data-status]::before {
+            content: attr(data-status);
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 20px;
+        }
     </style>
 </head>
 <body>
@@ -526,11 +535,286 @@
             updateDisplays();
         }
 
-        // Modified createSkillEffect to include stats and skill name
-        function createSkillEffect(type, color, damage, spCost, element, skillName) {
+        // Add status effects system
+        const statusEffects = {
+            burn: {
+                name: 'Burn',
+                duration: 5000, // 5 seconds
+                tickInterval: 500, // damage every 0.5 seconds
+                damagePerTick: 5,
+                color: '#ff4444',
+                particle: '🔥',
+                chance: 0.35, // 35% chance to apply burn
+                damageAmplifier: 1.5 // 50% more damage from fire attacks when burned
+            },
+            poison: {
+                name: 'Poison',
+                duration: 8000, // 8 seconds
+                tickInterval: 1000, // damage every 1 second
+                damagePerTick: 3,
+                color: '#8b008b',
+                particle: '☠️',
+                chance: 0.4, // 40% chance to apply poison
+                speedReduction: 0.5 // 50% movement speed reduction
+            },
+            freeze: {
+                name: 'Freeze',
+                duration: 3000, // 3 seconds
+                color: '#87CEEB',
+                particle: '❄️'
+            }
+        };
+
+        let activeStatusEffects = [];
+        let isTargetFrozen = false;
+        let baseMovementSpeed = 5; // Store the base movement speed
+
+        function applyStatusEffect(type, element) {
+            // Clear existing status of the same type
+            activeStatusEffects = activeStatusEffects.filter(effect => effect.type !== type);
+            
+            if (type === 'burn' && element === 'fire') {
+                // Check burn chance
+                if (Math.random() < statusEffects.burn.chance) {
+                    const burnEffect = {
+                        type: 'burn',
+                        endTime: Date.now() + statusEffects.burn.duration,
+                        lastTickTime: Date.now()
+                    };
+                    activeStatusEffects.push(burnEffect);
+                    showStatusEffect('burn');
+                }
+            } else if (type === 'poison' && element === 'poison') {
+                // Check poison chance
+                if (Math.random() < statusEffects.poison.chance) {
+                    const poisonEffect = {
+                        type: 'poison',
+                        endTime: Date.now() + statusEffects.poison.duration,
+                        lastTickTime: Date.now()
+                    };
+                    activeStatusEffects.push(poisonEffect);
+                    showStatusEffect('poison');
+                    // Apply movement speed reduction
+                    moveSpeed = baseMovementSpeed * (1 - statusEffects.poison.speedReduction);
+                }
+            } else if (type === 'freeze' && element === 'water') {
+                // 30% chance to freeze
+                if (Math.random() < 0.3) {
+                    const freezeEffect = {
+                        type: 'freeze',
+                        endTime: Date.now() + statusEffects.freeze.duration
+                    };
+                    activeStatusEffects.push(freezeEffect);
+                    isTargetFrozen = true;
+                    showStatusEffect('freeze');
+                    
+                    // Unfreeze after duration
+                    setTimeout(() => {
+                        isTargetFrozen = false;
+                        activeStatusEffects = activeStatusEffects.filter(effect => effect.type !== 'freeze');
+                        updateDummyAppearance();
+                    }, statusEffects.freeze.duration);
+                }
+            }
+        }
+
+        function showStatusEffect(type) {
+            const effect = statusEffects[type];
+            const statusText = document.createElement('div');
+            statusText.className = 'combat-text';
+            statusText.style.position = 'absolute';
+            statusText.style.left = '470px';
+            statusText.style.top = '130px';
+            statusText.style.color = effect.color;
+            statusText.style.fontSize = '24px';
+            statusText.textContent = effect.particle + ' ' + effect.name;
+            document.getElementById('gameArea').appendChild(statusText);
+            setTimeout(() => statusText.remove(), 1500);
+        }
+
+        // Update dummy appearance based on status
+        function updateDummyAppearance() {
+            let particles = '';
+            for (const effect of activeStatusEffects) {
+                particles += statusEffects[effect.type].particle;
+            }
+            if (particles) {
+                dummy.setAttribute('data-status', particles);
+            } else {
+                dummy.removeAttribute('data-status');
+            }
+
+            // Visual effect for frozen state
+            if (isTargetFrozen) {
+                dummy.style.filter = 'brightness(1.5) saturate(2) hue-rotate(180deg)';
+            } else {
+                dummy.style.filter = '';
+            }
+        }
+
+        // Process status effects
+        setInterval(() => {
+            const now = Date.now();
+            let statusChanged = false;
+
+            // Don't process status effects if dummy is already dead
+            if (dummyHealth <= 0) {
+                activeStatusEffects = [];
+                updateDummyAppearance();
+                return;
+            }
+
+            activeStatusEffects = activeStatusEffects.filter(effect => {
+                if (effect.endTime <= now) {
+                    statusChanged = true;
+                    return false;
+                }
+
+                if (effect.type === 'burn' && now - effect.lastTickTime >= statusEffects.burn.tickInterval) {
+                    dummyHealth = Math.max(0, dummyHealth - statusEffects.burn.damagePerTick);
+                    effect.lastTickTime = now;
+                    
+                    // Only show burn damage if dummy is still alive
+                    if (dummyHealth > 0) {
+                        const burnDamage = document.createElement('div');
+                        burnDamage.className = 'combat-text';
+                        burnDamage.style.position = 'absolute';
+                        burnDamage.style.left = '470px';
+                        burnDamage.style.top = '150px';
+                        burnDamage.style.color = statusEffects.burn.color;
+                        burnDamage.textContent = statusEffects.burn.damagePerTick;
+                        document.getElementById('gameArea').appendChild(burnDamage);
+                        setTimeout(() => burnDamage.remove(), 1000);
+                    }
+                }
+
+                if (effect.type === 'poison' && now - effect.lastTickTime >= statusEffects.poison.tickInterval) {
+                    dummyHealth = Math.max(0, dummyHealth - statusEffects.poison.damagePerTick);
+                    effect.lastTickTime = now;
+                    
+                    // Only show poison damage if dummy is still alive
+                    if (dummyHealth > 0) {
+                        const poisonDamage = document.createElement('div');
+                        poisonDamage.className = 'combat-text';
+                        poisonDamage.style.position = 'absolute';
+                        poisonDamage.style.left = '470px';
+                        poisonDamage.style.top = '150px';
+                        poisonDamage.style.color = statusEffects.poison.color;
+                        poisonDamage.textContent = statusEffects.poison.damagePerTick;
+                        document.getElementById('gameArea').appendChild(poisonDamage);
+                        setTimeout(() => poisonDamage.remove(), 1000);
+                    }
+                }
+
+                // Check if dummy died from DoT damage
+                if (dummyHealth <= 0) {
+                    dummyHealth = 0;
+                    gainExp(50);
+                    activeStatusEffects = []; // Clear all status effects
+                    statusChanged = true;
+                    return false;
+                }
+
+                dummy.textContent = dummyHealth;
+                return dummyHealth > 0; // Only keep effect if dummy is still alive
+            });
+
+            if (statusChanged) {
+                updateDummyAppearance();
+            }
+        }, 100);
+
+        // Add dodge system
+        let isDodging = false;
+        let dodgeEndTime = 0;
+        const TELEPORT_DISTANCE = 100; // Distance in pixels for teleport
+
+        // Add dodge effect to character
+        function applyDodgeEffect(isTeleport = false) {
+            if (isTeleport) {
+                character.style.opacity = '0.3';
+                character.style.filter = 'blur(4px) brightness(1.5)';
+                character.style.transition = 'all 0.2s ease-out';
+            } else {
+                character.style.opacity = '0.5';
+                character.style.filter = 'blur(2px)';
+            }
+            character.style.animation = 'none';
+            isDodging = true;
+        }
+
+        // Remove dodge effect
+        function removeDodgeEffect() {
+            character.style.opacity = '1';
+            character.style.filter = 'none';
+            character.style.transition = '';
+            isDodging = false;
+        }
+
+        // Handle teleport dodge in specific direction
+        function handleTeleportDodge() {
+            let dx = 0;
+            let dy = 0;
+
+            if (pressedKeys.has('w')) dy -= 1;
+            if (pressedKeys.has('s')) dy += 1;
+            if (pressedKeys.has('a')) dx -= 1;
+            if (pressedKeys.has('d')) dx += 1;
+
+            // If no direction pressed, teleport forward (right)
+            if (dx === 0 && dy === 0) {
+                dx = 1;
+            }
+
+            // Normalize diagonal movement
+            if (dx !== 0 && dy !== 0) {
+                dx *= 0.707;
+                dy *= 0.707;
+            }
+
+            // Calculate new position
+            const newX = Math.max(0, Math.min(550, charX + dx * TELEPORT_DISTANCE));
+            const newY = Math.max(0, Math.min(350, charY + dy * TELEPORT_DISTANCE));
+
+            // Create afterimage effect
+            const afterimage = document.createElement('div');
+            afterimage.style.position = 'absolute';
+            afterimage.style.width = '50px';
+            afterimage.style.height = '50px';
+            afterimage.style.background = 'rgba(0, 0, 255, 0.3)';
+            afterimage.style.borderRadius = '50%';
+            afterimage.style.left = charX + 'px';
+            afterimage.style.top = charY + 'px';
+            afterimage.style.animation = 'fadeOut 0.5s forwards';
+            document.getElementById('gameArea').appendChild(afterimage);
+
+            // Add fadeOut animation if it doesn't exist
+            if (!document.querySelector('#teleportStyle')) {
+                const style = document.createElement('style');
+                style.id = 'teleportStyle';
+                style.textContent = `
+                    @keyframes fadeOut {
+                        from { opacity: 0.3; transform: scale(1); }
+                        to { opacity: 0; transform: scale(0.5); }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            // Teleport to new position
+            charX = newX;
+            charY = newY;
+            character.style.left = charX + 'px';
+            character.style.top = charY + 'px';
+
+            // Remove afterimage after animation
+            setTimeout(() => afterimage.remove(), 500);
+        }
+
+        // Modify createSkillEffect to handle teleport dodge skills
+        function createSkillEffect(type, color, damage, spCost, element, skillName, isDodgeSkill = false, cooldownMs = 1000) {
             return () => {
                 if (playerStats.skillCooldown || playerStats.sp < spCost) {
-                    // Create floating text for error message
                     const errorText = document.createElement('div');
                     errorText.className = 'combat-text';
                     errorText.style.left = (charX + 25) + 'px';
@@ -539,20 +823,83 @@
                     errorText.style.fontSize = '14px';
                     errorText.textContent = playerStats.skillCooldown ? "Cooldown!" : "Not enough SP!";
                     document.getElementById('gameArea').appendChild(errorText);
-                    
-                    // Remove the element after animation completes
                     setTimeout(() => errorText.remove(), 1500);
                     return;
                 }
 
-                // Apply stat and elemental effects
+                // Handle dodge skills
+                if (isDodgeSkill) {
+                    const dodgeDuration = 1000; // 1 second of dodge
+                    const isTeleport = skillName.toLowerCase().includes('teleport') || 
+                                     skillName.toLowerCase().includes('blink');
+                    
+                    applyDodgeEffect(isTeleport);
+                    dodgeEndTime = Date.now() + dodgeDuration;
+
+                    if (isTeleport) {
+                        handleTeleportDodge();
+                    }
+
+                    // Show dodge activation text
+                    const dodgeText = document.createElement('div');
+                    dodgeText.className = 'combat-text';
+                    dodgeText.style.position = 'absolute';
+                    dodgeText.style.left = (charX + 25) + 'px';
+                    dodgeText.style.top = (charY - 40) + 'px';
+                    dodgeText.style.color = '#ffffff';
+                    dodgeText.style.background = 'rgba(0, 0, 0, 0.7)';
+                    dodgeText.style.padding = '4px 8px';
+                    dodgeText.style.borderRadius = '4px';
+                    dodgeText.style.fontSize = '16px';
+                    dodgeText.textContent = isTeleport ? '⚡ Blink!' : '🌟 Dodge!';
+                    document.getElementById('gameArea').appendChild(dodgeText);
+                    setTimeout(() => dodgeText.remove(), 1000);
+
+                    // Remove dodge effect after duration
+                    setTimeout(() => {
+                        removeDodgeEffect();
+                    }, dodgeDuration);
+
+                    playerStats.sp -= spCost;
+                    updateDisplays();
+
+                    // Show skill name
+                    const skillNameText = document.createElement('div');
+                    skillNameText.className = 'combat-text';
+                    skillNameText.style.position = 'absolute';
+                    skillNameText.style.left = (charX + 25) + 'px';
+                    skillNameText.style.top = (charY - 60) + 'px';
+                    skillNameText.style.background = elements[element].gradient;
+                    skillNameText.style.color = elements[element].textColor;
+                    skillNameText.style.padding = '4px 8px';
+                    skillNameText.style.borderRadius = '4px';
+                    skillNameText.style.fontWeight = 'bold';
+                    skillNameText.style.fontSize = '16px';
+                    skillNameText.textContent = skillName;
+                    document.getElementById('gameArea').appendChild(skillNameText);
+                    setTimeout(() => skillNameText.remove(), 1500);
+
+                    // Use AI-determined cooldown
+                    playerStats.skillCooldown = true;
+                    setTimeout(() => {
+                        playerStats.skillCooldown = false;
+                    }, cooldownMs);
+
+                    return;
+                }
+
+                // Rest of the existing skill effect code...
                 const strBonus = type === 'melee' ? (playerStats.str * 0.1) : 0;
                 const intBonus = type === 'ranged' ? (playerStats.int * 0.1) : 0;
                 const lukBonus = Math.random() < (playerStats.luk * 0.01);
                 const elementalMod = calculateElementalModifier(element, dummyElement);
-                const finalDamage = Math.floor(damage * (1 + strBonus + intBonus) * (lukBonus ? 2 : 1) * elementalMod);
+                
+                const burnAmplifier = element === 'fire' && activeStatusEffects.some(effect => effect.type === 'burn') 
+                    ? statusEffects.burn.damageAmplifier 
+                    : 1;
+                
+                const finalDamage = Math.floor(damage * (1 + strBonus + intBonus) * (lukBonus ? 2 : 1) * elementalMod * burnAmplifier);
 
-                // Rest of the effect code...
                 playerStats.sp -= spCost;
                 updateDisplays();
 
@@ -572,11 +919,11 @@
                 document.getElementById('gameArea').appendChild(skillNameText);
                 setTimeout(() => skillNameText.remove(), 1500);
 
-                const cooldownTime = Math.max(1000 - (playerStats.agi * 50), 200);
+                // Use AI-determined cooldown
                 playerStats.skillCooldown = true;
                 setTimeout(() => {
                     playerStats.skillCooldown = false;
-                }, cooldownTime);
+                }, cooldownMs);
 
                 if (type === 'ranged') {
                     const ballSize = 20 + (playerStats.dex * 2);
@@ -598,6 +945,15 @@
                             dummy.textContent = dummyHealth;
                             if (dummyHealth === 0) {
                                 gainExp(50);
+                            }
+
+                            // Apply status effects only on hit for ranged attacks
+                            if (element === 'fire') {
+                                applyStatusEffect('burn', element);
+                            } else if (element === 'poison') {
+                                applyStatusEffect('poison', element);
+                            } else if (element === 'water') {
+                                applyStatusEffect('freeze', element);
                             }
 
                             // Show damage text when projectile hits
@@ -651,6 +1007,15 @@
                         dummy.textContent = dummyHealth;
                         if (dummyHealth === 0) {
                             gainExp(50);
+                        }
+
+                        // Apply status effects only on hit for melee attacks
+                        if (element === 'fire') {
+                            applyStatusEffect('burn', element);
+                        } else if (element === 'poison') {
+                            applyStatusEffect('poison', element);
+                        } else if (element === 'water') {
+                            applyStatusEffect('freeze', element);
                         }
                         
                         // Only show damage text if we actually hit
@@ -761,7 +1126,7 @@
             pressedKeys.clear();
         });
 
-        // Create a skill by calling Ollama
+        // AI-based skill generation
         async function createSkill() {
             const prompt = skillInput.value.trim();
             if (!prompt) return;
@@ -774,30 +1139,77 @@
                     },
                     body: JSON.stringify({
                         model: 'llama3',
-                        prompt: `You are a game skill creator. Create a skill based on this description: "${prompt}". Return ONLY a JSON object with these exact fields and nothing else:
-{
-    "name": "skill name here",
-    "type": "ranged or melee",
-    "element": "one of: neutral, fire, water, wind, earth, poison, holy, shadow, undead",
-    "color": "color name here",
-    "damage": number between 10-30,
-    "spCost": number between 10-50,
-    "description": "skill description here"
-}`,
-                        stream: false
+                        prompt: `You are an expert game balance designer specializing in RPG combat systems. Create a balanced skill based on this description: "${prompt}".
+
+                        ANALYZE THE SKILL DESCRIPTION FOR:
+                        1. Complexity (simple attack vs. complex combo)
+                        2. Range (melee vs. ranged)
+                        3. Area of Effect (single target vs. AoE)
+                        4. Status Effects (none, burn, poison, freeze)
+                        5. Utility (pure damage vs. utility/control)
+                        6. Theme and Power Fantasy
+
+                        BALANCE GUIDELINES:
+                        1. SP Cost (5-50):
+                           - Basic attacks: 5-15 SP
+                           - Standard skills: 15-30 SP
+                           - Complex/Powerful skills: 30-50 SP
+                           - Status effects add +5-10 SP
+                           - AoE adds +10-15 SP
+                           - Melee skills cost 20% less than ranged
+                           
+                        2. Cooldown (200-3000ms):
+                           - Basic attacks: 200-500ms
+                           - Standard skills: 500-1500ms
+                           - Ultimate/Powerful: 1500-3000ms
+                           - Reduce by 20% for utility skills
+                           - Increase by 30% for AoE
+                           - Melee skills have 25% lower cooldown
+                           
+                        3. Damage (5-30):
+                           - Melee Basic: 8-15 (Higher risk, higher reward)
+                           - Ranged Basic: 5-10 (Safer, lower damage)
+                           - Melee Standard: 15-25
+                           - Ranged Standard: 10-20
+                           - Melee Ultimate: 25-35
+                           - Ranged Ultimate: 20-30
+                           - Reduce by 30% if has status effects
+                           - Reduce by 20% if AoE
+                           - Neutral skills deal 50% damage
+                           - Melee gets +25% STR scaling
+
+                        4. Power Level:
+                           LOW: Basic attacks, simple utility
+                           MEDIUM: Standard damage/utility skills
+                           HIGH: Ultimate abilities, complex combos
+
+                        5. Risk-Reward Factors:
+                           - Melee range is 70 pixels
+                           - Ranged has projectile travel time
+                           - Melee gets better stat scaling
+                           - Melee has lower costs and cooldowns
+
+                        Return ONLY a JSON object with these fields:
+                        {
+                            "name": "skill name",
+                            "type": "melee" or "ranged",
+                            "element": "fire", "water", "wind", "poison", or "neutral",
+                            "damage": number between 5-35,
+                            "spCost": number between 5-50,
+                            "cooldownMs": number between 200-3000,
+                            "description": "skill description",
+                            "powerLevel": "low", "medium", or "high",
+                            "hasStatusEffect": boolean,
+                            "isAoE": boolean,
+                            "utilityValue": number between 0-10
+                        }`
                     })
                 });
 
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-
-                const data = await response.json();
-                console.log('Ollama response:', data.response); // For debugging
-
+                const data = await response.text();
                 let skillData;
+
                 try {
-                    // Try to extract JSON from the response
                     const jsonMatch = data.response.match(/\{[\s\S]*\}/);
                     if (jsonMatch) {
                         skillData = JSON.parse(jsonMatch[0]);
@@ -806,81 +1218,239 @@
                     }
                 } catch (e) {
                     console.log('Parsing error:', e);
-                    // Fallback with improved error handling
+                    // Enhanced fallback system with better balance
                     const text = prompt.toLowerCase();
+                    const isDodgeSkill = text.includes('dodge') || text.includes('evade') || text.includes('avoid');
+                    const isAoE = text.includes('area') || text.includes('aoe') || text.includes('explosion') || text.includes('wave');
+                    const hasStatusEffect = text.includes('burn') || text.includes('freeze') || text.includes('poison');
+                    const isBasicAttack = text.includes('basic') || text.includes('normal') || text.includes('simple');
+                    const isPowerful = text.includes('ultimate') || text.includes('powerful') || text.includes('massive');
+                    const isMelee = !text.includes('shoot') && !text.includes('beam') && !text.includes('ball');
+                    
+                    // Calculate base values with melee bonus
+                    let baseDamage;
+                    if (isMelee) {
+                        baseDamage = isBasicAttack ? 8 + Math.floor(Math.random() * 8) : // 8-15
+                                    isPowerful ? 25 + Math.floor(Math.random() * 11) : // 25-35
+                                    15 + Math.floor(Math.random() * 11); // 15-25
+                    } else {
+                        baseDamage = isBasicAttack ? 5 + Math.floor(Math.random() * 6) : // 5-10
+                                    isPowerful ? 20 + Math.floor(Math.random() * 11) : // 20-30
+                                    10 + Math.floor(Math.random() * 11); // 10-20
+                    }
+
+                    // SP cost with melee discount
+                    let baseSpCost = isBasicAttack ? 5 + Math.floor(Math.random() * 11) : // 5-15
+                                   isPowerful ? 30 + Math.floor(Math.random() * 21) : // 30-50
+                                   15 + Math.floor(Math.random() * 16); // 15-30
+                    if (isMelee) baseSpCost = Math.floor(baseSpCost * 0.8); // 20% less SP cost for melee
+
+                    // Cooldown with melee reduction
+                    let baseCooldown = isBasicAttack ? 200 + Math.floor(Math.random() * 301) : // 200-500
+                                     isPowerful ? 1500 + Math.floor(Math.random() * 1501) : // 1500-3000
+                                     500 + Math.floor(Math.random() * 1001); // 500-1500
+                    if (isMelee) baseCooldown = Math.floor(baseCooldown * 0.75); // 25% lower cooldown for melee
+
+                    // Apply modifiers
+                    if (hasStatusEffect) {
+                        baseDamage = Math.floor(baseDamage * 0.7);
+                        baseSpCost += 5 + Math.floor(Math.random() * 6); // +5-10 SP
+                    }
+                    if (isAoE) {
+                        baseDamage = Math.floor(baseDamage * 0.8);
+                        baseSpCost += 10 + Math.floor(Math.random() * 6); // +10-15 SP
+                        baseCooldown = Math.floor(baseCooldown * 1.3);
+                    }
+                    if (isDodgeSkill) {
+                        baseDamage = 0;
+                        baseSpCost = Math.floor(baseSpCost * 0.3);
+                        baseCooldown = Math.floor(baseCooldown * 0.8);
+                    }
+                    
                     skillData = {
                         name: prompt.charAt(0).toUpperCase() + prompt.slice(1),
                         type: text.includes('shoot') || text.includes('beam') || text.includes('ball') ? 'ranged' : 'melee',
-                        element: text.includes('fire') ? 'fire' : text.includes('ice') ? 'water' : text.includes('lightning') ? 'wind' : text.includes('poison') ? 'poison' : 'neutral',
-                        color: text.includes('fire') ? 'orange' : text.includes('ice') ? 'blue' : text.includes('lightning') ? 'lightgreen' : text.includes('poison') ? 'purple' : 'red',
-                        damage: Math.floor(Math.random() * 21) + 10,
-                        spCost: Math.floor(Math.random() * 41) + 10,
-                        description: generateWoWDescription(prompt)
+                        element: text.includes('fire') ? 'fire' : 
+                                text.includes('ice') ? 'water' : 
+                                text.includes('lightning') ? 'wind' : 
+                                text.includes('poison') ? 'poison' : 'neutral',
+                        damage: baseDamage,
+                        spCost: baseSpCost,
+                        cooldownMs: baseCooldown,
+                        description: generateWoWDescription(prompt),
+                        powerLevel: isPowerful ? "high" : isBasicAttack ? "low" : "medium",
+                        hasStatusEffect: hasStatusEffect,
+                        isAoE: isAoE,
+                        utilityValue: isDodgeSkill ? 8 : hasStatusEffect ? 5 : 2
                     };
                 }
 
-                // Update skillData validation to include element
+                // Validate and adjust AI values based on skill type
+                const isDodgeSkill = prompt.toLowerCase().includes('dodge') || 
+                                   prompt.toLowerCase().includes('evade') || 
+                                   prompt.toLowerCase().includes('avoid');
+
                 skillData = {
                     name: String(skillData.name || prompt).slice(0, 50),
                     type: ['ranged', 'melee'].includes(skillData.type) ? skillData.type : 'ranged',
                     element: elements[skillData.element] ? skillData.element : 'neutral',
                     color: String(skillData.color || elements[skillData.element || 'neutral'].color),
-                    damage: Math.max(10, Math.min(30, Number(skillData.damage) || 20)),
-                    spCost: Math.max(10, Math.min(50, Math.floor(Number(skillData.spCost) * 0.9) || 10)), // Reduce SP cost by 10%
-                    description: String(skillData.description || generateWoWDescription(prompt, skillData))
+                    damage: isDodgeSkill ? 0 : Number(skillData.damage),
+                    spCost: isDodgeSkill ? Math.min(15, Math.floor(Number(skillData.spCost) * 0.3)) : Number(skillData.spCost),
+                    cooldownMs: Number(skillData.cooldownMs),
+                    description: isDodgeSkill 
+                        ? `A defensive maneuver that grants temporary invulnerability for 1 second.`
+                        : String(skillData.description),
+                    powerLevel: String(skillData.powerLevel || "medium"),
+                    hasStatusEffect: Boolean(skillData.hasStatusEffect),
+                    isAoE: Boolean(skillData.isAoE),
+                    utilityValue: Number(skillData.utilityValue || 0)
                 };
 
+                // Create the skill object
                 const skill = {
                     name: skillData.name,
-                    effect: createSkillEffect(skillData.type, skillData.color, skillData.damage, skillData.spCost, skillData.element, skillData.name),
-                    description: generateTechnicalDescription(skillData),
+                    effect: createSkillEffect(
+                        skillData.type, 
+                        skillData.color, 
+                        skillData.damage, 
+                        skillData.spCost, 
+                        skillData.element, 
+                        skillData.name,
+                        isDodgeSkill,
+                        skillData.cooldownMs
+                    ),
+                    description: generateTechnicalDescription(skillData, isDodgeSkill),
                     damage: skillData.damage,
                     element: skillData.element,
-                    spCost: skillData.spCost
+                    spCost: skillData.spCost,
+                    cooldownMs: skillData.cooldownMs,
+                    isDodgeSkill: isDodgeSkill,
+                    powerLevel: skillData.powerLevel
                 };
 
-                if (skills.length < 4) {
-                    skills.push(skill);
-                    updateSkillList();
-                } else {
-                    alert("You already have 4 skills! Use existing skills or reset the game to create new ones.");
-                }
+                // Add the skill to the skills array
+                skills.push(skill);
+                updateSkillList();
+                skillInput.value = '';
+
             } catch (error) {
-                console.error('Error:', error);
-                alert("Couldn't create skill. Please try again or check if Ollama is running.");
+                console.error('Error creating skill:', error);
             }
-            skillInput.value = '';
         }
 
-        // WoW-style fallback description
+        // Enhanced creative skill description generation
         function generateWoWDescription(prompt) {
             const text = prompt.toLowerCase();
-            if (text.includes('shoot') || text.includes('beam')) {
-                const element = text.includes('fire') ? 'flame' : text.includes('ice') ? 'frost' : 'energy';
-                return `Hurls a bolt of ${element} across the battlefield, striking the first foe in its path for ${Math.floor(Math.random() * 21) + 10} ${element.charAt(0).toUpperCase() + element.slice(1)} damage and leaving a shimmering echo of power in its wake.`;
+            
+            // Extract key characteristics
+            const isMelee = !text.includes('shoot') && !text.includes('beam') && !text.includes('ball');
+            const isDodge = text.includes('dodge') || text.includes('evade') || text.includes('blink');
+            const isUltimate = text.includes('ultimate') || text.includes('powerful') || text.includes('massive');
+            
+            // Determine element and its characteristics
+            const elementMap = {
+                fire: {
+                    element: 'fire',
+                    adjectives: ['blazing', 'infernal', 'scorching', 'searing', 'volcanic'],
+                    nouns: ['flames', 'inferno', 'blaze', 'firestorm', 'conflagration'],
+                    verbs: ['ignites', 'incinerates', 'immolates', 'scorches', 'burns'],
+                    effects: ['reducing them to ash', 'leaving only cinders in your wake', 'melting everything in its path', 'creating a devastating inferno']
+                },
+                water: {
+                    element: 'water',
+                    adjectives: ['frozen', 'glacial', 'arctic', 'crystalline', 'frigid'],
+                    nouns: ['ice', 'frost', 'blizzard', 'avalanche', 'glacier'],
+                    verbs: ['freezes', 'chills', 'crystallizes', 'entombs', 'flash-freezes'],
+                    effects: ['encasing them in ice', 'shattering their defenses', 'freezing them to their core', 'creating a field of absolute zero']
+                },
+                wind: {
+                    element: 'wind',
+                    adjectives: ['tempestuous', 'storming', 'howling', 'cyclonic', 'turbulent'],
+                    nouns: ['gale', 'tempest', 'hurricane', 'storm', 'whirlwind'],
+                    verbs: ['slices', 'shreds', 'buffets', 'tears through', 'rends'],
+                    effects: ['leaving them scattered to the winds', 'creating a devastating vacuum', 'shredding everything in its path', 'forming a destructive cyclone']
+                },
+                poison: {
+                    element: 'poison',
+                    adjectives: ['virulent', 'toxic', 'pestilent', 'corrupting', 'venomous'],
+                    nouns: ['toxin', 'venom', 'plague', 'miasma', 'corruption'],
+                    verbs: ['corrupts', 'infects', 'poisons', 'contaminates', 'taints'],
+                    effects: ['melting their very essence', 'spreading unstoppable decay', 'corrupting their life force', 'leaving only decay in its wake']
+                },
+                neutral: {
+                    element: 'force',
+                    adjectives: ['mystical', 'arcane', 'ethereal', 'cosmic', 'primal'],
+                    nouns: ['energy', 'force', 'power', 'essence', 'might'],
+                    verbs: ['strikes', 'crushes', 'devastates', 'overwhelms', 'annihilates'],
+                    effects: ['warping reality itself', 'shattering the laws of nature', 'creating a cascade of raw power', 'bending space and time']
+                }
+            };
+
+            // Determine element based on skill description
+            let elementType = 'neutral';
+            for (const element in elementMap) {
+                if (text.includes(element)) {
+                    elementType = element;
+                    break;
+                }
+            }
+            
+            const elem = elementMap[elementType];
+            
+            // Random selection helpers
+            const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+            
+            if (isDodge) {
+                const dodgeDescriptions = [
+                    `Channel the power of ${pick(elem.nouns)} to ${pick(['phase through reality', 'bend space-time', 'transcend physical bounds', 'defy the laws of nature'])}, becoming momentarily ${pick(['ethereal', 'invulnerable', 'untouchable', 'ghostlike'])} as you ${pick(['dance between dimensions', 'slip through the fabric of reality', 'move with supernatural grace', 'traverse the void itself'])}.`,
+                    `Harness ${pick(elem.adjectives)} energy to ${pick(['fold space', 'manipulate reality', 'distort dimensions', 'bend the laws of physics'])}, allowing you to ${pick(['blink through the ethereal plane', 'phase through the material world', 'step between moments in time', 'transcend physical barriers'])} with the grace of a cosmic dancer.`,
+                    `Invoke ancient ${elem.element} magic to ${pick(['meld with the shadows', 'become one with the void', 'transcend mortal bounds', 'defy physical laws'])}, granting a moment of perfect ${pick(['transcendence', 'invulnerability', 'ethereality', 'dimensional shift'])} as you ${pick(['weave through reality', 'dance between worlds', 'slip through space-time', 'move like living mist'])}.`
+                ];
+                return pick(dodgeDescriptions);
+            }
+
+            if (isMelee) {
+                const meleeDescriptions = [
+                    `Unleash a devastating ${pick(elem.adjectives)} assault that ${pick(elem.verbs)} your enemies with ${pick(['unrelenting', 'overwhelming', 'unstoppable', 'devastating'])} force, ${pick(elem.effects)}. Each strike resonates with the power of ${pick(['ancient gods', 'primal forces', 'cosmic might', 'elemental fury'])}.`,
+                    `Channel pure ${elem.element} into a ${pick(['devastating', 'cataclysmic', 'earth-shattering', 'reality-warping'])} series of strikes, ${pick(elem.verbs)} your foes as ${pick(['reality warps', 'space distorts', 'time fractures', 'dimensions collapse'])} around you, ${pick(elem.effects)}.`,
+                    `Become one with the essence of ${elem.element}, transforming your strikes into ${pick(elem.adjectives)} manifestations of pure destruction that ${pick(elem.verbs)} anything in their path, ${pick(elem.effects)} while ${pick(['reality trembles', 'the air screams', 'space fractures', 'time holds its breath'])}.`
+                ];
+                return pick(meleeDescriptions);
             } else {
-                const element = text.includes('fire') ? 'fiery' : text.includes('ice') ? 'glacial' : 'shadow';
-                return `Delivers a devastating ${element} strike with unyielding force, dealing ${Math.floor(Math.random() * 21) + 10} ${element.charAt(0).toUpperCase() + element.slice(1)} damage to enemies within reach and sundering their resolve with its sheer might.`;
+                const rangedDescriptions = [
+                    `Conjure a ${pick(elem.adjectives)} manifestation of pure ${elem.element} that ${pick(['spirals', 'weaves', 'tears', 'rips'])} through the fabric of reality, ${pick(elem.verbs)} your enemies as it ${pick(['defies physics', 'warps space', 'bends time', 'shatters dimensions'])}, ${pick(elem.effects)}.`,
+                    `Summon forth a ${pick(elem.adjectives)} torrent of ${pick(elem.nouns)} that ${pick(['cascades', 'erupts', 'surges', 'storms'])} across the battlefield, ${pick(elem.verbs)} all who stand before you while ${pick(['reality buckles', 'the air screams', 'space distorts', 'time fragments'])}, ${pick(elem.effects)}.`,
+                    `Channel the primal essence of ${elem.element} into a ${pick(elem.adjectives)} projectile that ${pick(['screams', 'howls', 'roars', 'thunders'])} through the air, ${pick(elem.verbs)} your foes as it ${pick(['tears reality asunder', 'shatters the material plane', 'ruptures the fabric of space', 'fractures the bounds of existence'])}, ${pick(elem.effects)}.`
+                ];
+                return pick(rangedDescriptions);
             }
         }
 
-        // Generate technical description for skills
-        function generateTechnicalDescription(skillData) {
+        // Update technical description to show AI-determined values
+        function generateTechnicalDescription(skillData, isDodgeSkill) {
             const element = elements[skillData.element];
-            const cooldownTime = Math.max(1000 - (playerStats.agi * 50), 200);
-            const cooldownSec = (cooldownTime / 1000).toFixed(1);
+            const cooldownSec = (skillData.cooldownMs / 1000).toFixed(1);
+            const powerLevelColors = {
+                low: '#4CAF50',    // Green
+                medium: '#FFA726',  // Orange
+                high: '#F44336'     // Red
+            };
             
             return `<div class="element-tag" style="background: ${element.gradient}; color: ${element.textColor}">
-                        ${element.name}
+                        ${element.name}${isDodgeSkill ? ' - Dodge' : ''}
                     </div>
                     ${skillData.description}
                     
                     <div class="technical-details">
                         <strong>Technical Details:</strong>
-                        • Base Damage: ${skillData.damage}
+                        ${isDodgeSkill 
+                            ? `• Effect: 1 second invulnerability\n• Dodge Chance: 100%` 
+                            : `• Base Damage: ${skillData.damage}`}
                         • SP Cost: ${skillData.spCost}
                         • Cooldown: ${cooldownSec}s
-                        • Type: ${skillData.type.charAt(0).toUpperCase() + skillData.type.slice(1)}
+                        • Type: ${isDodgeSkill ? 'Dodge' : skillData.type.charAt(0).toUpperCase() + skillData.type.slice(1)}
+                        • Power Level: <span style="color: ${powerLevelColors[skillData.powerLevel.toLowerCase()]}">${skillData.powerLevel.toUpperCase()}</span>
                         
                         <strong>Element Properties:</strong>
                         • ${element.description}
@@ -989,16 +1559,7 @@
                 potion.style.top = y + 'px';
                 
                 potion.onclick = () => {
-                    if (isHpPotion) {
-                        playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + POTION_HEAL_AMOUNT);
-                        showPotionEffect(x, y, `+${POTION_HEAL_AMOUNT} HP`, '#ff6b6b');
-                    } else {
-                        playerStats.sp = Math.min(playerStats.maxSp, playerStats.sp + POTION_SP_AMOUNT);
-                        showPotionEffect(x, y, `+${POTION_SP_AMOUNT} SP`, '#6b88ff');
-                    }
-                    updateDisplays();
-                    document.getElementById('gameArea').removeChild(potion);
-                    activePotion = null;
+                    collectPotion(potion, isHpPotion, x, y);
                 };
                 
                 document.getElementById('gameArea').appendChild(potion);
@@ -1014,6 +1575,23 @@
                     }
                 }, 10000);
             }
+        }
+
+        function collectPotion(potion, isHpPotion, x, y) {
+            if (isHpPotion) {
+                playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + POTION_HEAL_AMOUNT);
+                showPotionEffect(x, y, `+${POTION_HEAL_AMOUNT} HP`, '#ff6b6b');
+                // Remove poison effect when HP potion is collected
+                activeStatusEffects = activeStatusEffects.filter(effect => effect.type !== 'poison');
+                moveSpeed = baseMovementSpeed; // Restore normal movement speed
+                updateDummyAppearance();
+            } else {
+                playerStats.sp = Math.min(playerStats.maxSp, playerStats.sp + POTION_SP_AMOUNT);
+                showPotionEffect(x, y, `+${POTION_SP_AMOUNT} SP`, '#6b88ff');
+            }
+            updateDisplays();
+            document.getElementById('gameArea').removeChild(potion);
+            activePotion = null;
         }
 
         function showPotionEffect(x, y, text, color) {
