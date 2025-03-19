@@ -374,6 +374,73 @@
                 opacity: 0;
             }
         }
+
+        .ai-attack {
+            border-radius: 50%;
+            animation: pulse 0.5s infinite;
+        }
+        .ai-skill {
+            animation: rotate 1s infinite linear;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .save-load-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            color: white;
+            z-index: 1000;
+            display: none;
+        }
+        .save-slot {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .save-slot button {
+            margin-left: 10px;
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .save-slot button.save {
+            background: #4CAF50;
+            color: white;
+        }
+        .save-slot button.load {
+            background: #2196F3;
+            color: white;
+        }
+        .save-slot button.delete {
+            background: #f44336;
+            color: white;
+        }
+        .close-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -414,7 +481,13 @@
     <input type="text" id="skillInput" placeholder="Type a skill (e.g., 'shoot a fire ball')">
     <button onclick="createSkill()">Summon Skill</button>
     <button onclick="resetDummy()">Reset Dummy</button>
+    <button onclick="toggleSaveLoadPanel()">Save/Load Skills</button>
     <div id="skillList"></div>
+    <div class="save-load-panel" id="saveLoadPanel">
+        <button class="close-panel" onclick="toggleSaveLoadPanel()">✕</button>
+        <h2>Save/Load Skills</h2>
+        <div id="saveSlots"></div>
+    </div>
 
     <script>
         const character = document.getElementById('character');
@@ -431,19 +504,19 @@
         let playerStats = {
             level: 1,
             exp: 0,
-            statPoints: 0,
+            statPoints: 3,  // Changed from 0 to 3
             str: 1,
             agi: 1,
             dex: 1,
             int: 1,
             vit: 1,
             luk: 1,
-            hp: 100,
-            maxHp: 100,
+            hp: 200,
+            maxHp: 200,
             sp: 50,
             maxSp: 50,
             skillCooldown: false,
-            lastSpRegen: Date.now() // Add timestamp for SP regeneration
+            lastSpRegen: Date.now()
         };
 
         // Element system
@@ -563,6 +636,9 @@
 
         // Calculate elemental damage modifier
         function calculateElementalModifier(attackElement, targetElement) {
+            // Status effect elements have reduced base damage
+            const isStatusElement = ['fire', 'water', 'poison'].includes(attackElement);
+            
             // Same element penalty (25% reduction)
             if (attackElement === targetElement) {
                 return 0.75;
@@ -583,16 +659,20 @@
 
             // Check if there's an advantage defined
             if (elementAdvantages[attackElement]?.[targetElement]) {
-                return elementAdvantages[attackElement][targetElement];
+                // For status elements, only apply full damage against advantageous elements
+                return isStatusElement ? 
+                    elementAdvantages[attackElement][targetElement] : 
+                    elementAdvantages[attackElement][targetElement];
             }
 
-            // Default case - no special relationship
-            return 1.0;
+            // Default case - apply 30% base damage for status elements against non-advantageous targets
+            return isStatusElement ? 0.3 : 1.0;
         }
 
         // Experience needed for each level (Ragnarok Online-like progression)
         function expForLevel(level) {
             if (level <= 1) return 0;
+            if (level > 25) return Infinity; // Prevent leveling past 25
             return Math.floor(Math.pow(level - 1, 3) + 100);
         }
 
@@ -628,18 +708,22 @@
 
         // Add stat point
         function addStat(stat) {
-            if (playerStats.statPoints > 0) {
+            if (playerStats.statPoints > 0 && playerStats[stat] < 50) {  // Cap at 50
                 playerStats[stat]++;
                 playerStats.statPoints--;
                 
                 // Update derived stats
                 if (stat === 'vit') {
-                    playerStats.maxHp = 100 + (playerStats.vit * 20);
+                    // Each point of VIT gives 50 HP (increased from 20)
+                    playerStats.maxHp = 200 + (playerStats.vit * 50);
                     playerStats.hp = playerStats.maxHp;
                 }
                 if (stat === 'int') {
-                    playerStats.maxSp = 50 + (playerStats.int * 10);
-                    playerStats.sp = playerStats.maxSp;
+                    const oldMaxSp = playerStats.maxSp;
+                    // INT scaling: Each point gives 8% increase (400% at 50 points)
+                    playerStats.maxSp = 50 * (1 + (playerStats.int * 0.08));
+                    // Keep the same percentage of SP when maxSp increases
+                    playerStats.sp = Math.min(playerStats.sp, playerStats.maxSp);
                 }
                 
                 updateDisplays();
@@ -673,194 +757,234 @@
             updateDisplays();
         }
 
-        // Add status effects system
+        // Unified status effect system
         const statusEffects = {
             burn: {
                 name: 'Burn',
-                duration: 5000, // 5 seconds
-                tickInterval: 500, // damage every 0.5 seconds
+                duration: 5000,
+                tickInterval: 500,
                 damagePerTick: 5,
                 color: '#ff4444',
                 particle: '🔥',
-                chance: 0.35, // 35% chance to apply burn
-                damageAmplifier: 1.5 // 50% more damage from fire attacks when burned
+                chance: 0.35,
+                damageAmplifier: 1.5,
+                onApply: (target) => {
+                    target.style.filter = 'brightness(1.2) sepia(0.5)';
+                },
+                onRemove: (target) => {
+                    target.style.filter = '';
+                }
             },
             poison: {
                 name: 'Poison',
-                duration: 8000, // 8 seconds
-                tickInterval: 1000, // damage every 1 second
+                duration: 8000,
+                tickInterval: 1000,
                 damagePerTick: 3,
                 color: '#8b008b',
                 particle: '☠️',
-                chance: 0.4, // 40% chance to apply poison
-                speedReduction: 0.5 // 50% movement speed reduction
+                chance: 0.4,
+                speedReduction: 0.5,
+                onApply: (target) => {
+                    target.style.filter = 'brightness(0.8) sepia(0.3) hue-rotate(270deg)';
+                },
+                onRemove: (target) => {
+                    target.style.filter = '';
+                }
             },
             freeze: {
                 name: 'Freeze',
-                duration: 3000, // 3 seconds
+                duration: 2000,
                 color: '#87CEEB',
-                particle: '❄️'
+                particle: '❄️',
+                chance: 0.3,
+                onApply: (target) => {
+                    target.style.filter = 'brightness(1.5) saturate(2) hue-rotate(180deg)';
+                },
+                onRemove: (target) => {
+                    target.style.filter = '';
+                }
             }
         };
 
-        let activeStatusEffects = [];
-        let isTargetFrozen = false;
-        let baseMovementSpeed = 5; // Store the base movement speed
-
-        function applyStatusEffect(type, element) {
-            // Clear existing status of the same type
-            activeStatusEffects = activeStatusEffects.filter(effect => effect.type !== type);
-            
-            if (type === 'burn' && element === 'fire') {
-                // Check burn chance
-                if (Math.random() < statusEffects.burn.chance) {
-                    const burnEffect = {
-                        type: 'burn',
-                        endTime: Date.now() + statusEffects.burn.duration,
-                        lastTickTime: Date.now()
-                    };
-                    activeStatusEffects.push(burnEffect);
-                    showStatusEffect('burn');
-                }
-            } else if (type === 'poison' && element === 'poison') {
-                // Check poison chance
-                if (Math.random() < statusEffects.poison.chance) {
-                    const poisonEffect = {
-                        type: 'poison',
-                        endTime: Date.now() + statusEffects.poison.duration,
-                        lastTickTime: Date.now()
-                    };
-                    activeStatusEffects.push(poisonEffect);
-                    showStatusEffect('poison');
-                    // Apply movement speed reduction
-                    moveSpeed = baseMovementSpeed * (1 - statusEffects.poison.speedReduction);
-                }
-            } else if (type === 'freeze' && element === 'water') {
-                // 30% chance to freeze
-                if (Math.random() < 0.3) {
-                    const freezeEffect = {
-                        type: 'freeze',
-                        endTime: Date.now() + statusEffects.freeze.duration
-                    };
-                    activeStatusEffects.push(freezeEffect);
-                    isTargetFrozen = true;
-                    showStatusEffect('freeze');
-                    
-                    // Unfreeze after duration
-                    setTimeout(() => {
-                        isTargetFrozen = false;
-                        activeStatusEffects = activeStatusEffects.filter(effect => effect.type !== 'freeze');
-                        updateDummyAppearance();
-                    }, statusEffects.freeze.duration);
-                }
+        // Track status effects for both player and AI
+        const entityStatus = {
+            player: {
+                activeEffects: [],
+                baseSpeed: 5,
+                currentSpeed: 5,
+                isFrozen: false
+            },
+            ai: {
+                activeEffects: [],
+                baseSpeed: 3,
+                currentSpeed: 3,
+                isFrozen: false
             }
-        }
+        };
 
-        function showStatusEffect(type) {
+        function applyStatusEffect(type, element, target) {
             const effect = statusEffects[type];
+            const entity = target === 'player' ? entityStatus.player : entityStatus.ai;
+            const targetElement = target === 'player' ? character : dummy;
+            
+            // Check if effect should be applied based on chance
+            if (Math.random() >= effect.chance) return;
+            
+            // Remove existing effect of the same type
+            entity.activeEffects = entity.activeEffects.filter(e => e.type !== type);
+            
+            // Create new effect instance
+            const newEffect = {
+                type: type,
+                endTime: Date.now() + effect.duration,
+                lastTickTime: Date.now()
+            };
+            
+            // Add effect to active effects
+            entity.activeEffects.push(newEffect);
+            
+            // Apply visual effect
+            effect.onApply(targetElement);
+            
+            // Show status effect text
             const statusText = document.createElement('div');
             statusText.className = 'combat-text';
             statusText.style.position = 'absolute';
-            statusText.style.left = '470px';
-            statusText.style.top = '130px';
+            statusText.style.left = targetElement.style.left;
+            statusText.style.top = (parseInt(targetElement.style.top) - 20) + 'px';
             statusText.style.color = effect.color;
             statusText.style.fontSize = '24px';
             statusText.textContent = effect.particle + ' ' + effect.name;
             document.getElementById('gameArea').appendChild(statusText);
             setTimeout(() => statusText.remove(), 1500);
-        }
-
-        // Update dummy appearance based on status
-        function updateDummyAppearance() {
-            let particles = '';
-            for (const effect of activeStatusEffects) {
-                particles += statusEffects[effect.type].particle;
+            
+            // Handle freeze effect
+            if (type === 'freeze') {
+                entity.isFrozen = true;
+                setTimeout(() => {
+                    entity.isFrozen = false;
+                    effect.onRemove(targetElement);
+                    entity.activeEffects = entity.activeEffects.filter(e => e.type !== 'freeze');
+                }, effect.duration);
             }
-            if (particles) {
-                dummy.setAttribute('data-status', particles);
-                } else {
-                dummy.removeAttribute('data-status');
-            }
-
-            // Visual effect for frozen state
-            if (isTargetFrozen) {
-                dummy.style.filter = 'brightness(1.5) saturate(2) hue-rotate(180deg)';
-            } else {
-                dummy.style.filter = '';
+            
+            // Handle poison effect
+            if (type === 'poison') {
+                entity.currentSpeed = entity.baseSpeed * (1 - effect.speedReduction);
+                setTimeout(() => {
+                    entity.currentSpeed = entity.baseSpeed;
+                }, effect.duration);
             }
         }
 
-        // Process status effects
+        // Process status effects for both entities
         setInterval(() => {
             const now = Date.now();
+            
+            // Process player status effects
+            processEntityStatusEffects('player', now);
+            
+            // Process AI status effects
+            processEntityStatusEffects('ai', now);
+        }, 100);
+
+        function processEntityStatusEffects(entityType, now) {
+            const entity = entityStatus[entityType];
+            const targetElement = entityType === 'player' ? character : dummy;
             let statusChanged = false;
 
-            // Don't process status effects if dummy is already dead
-            if (dummyHealth <= 0) {
-                activeStatusEffects = [];
-                updateDummyAppearance();
+            entity.activeEffects = entity.activeEffects.filter(effect => {
+                const effectData = statusEffects[effect.type];
+                
+                // Remove expired effects
+                if (effect.endTime <= now) {
+                    effectData.onRemove(targetElement);
+                    statusChanged = true;
+                    return false;
+                }
+
+                // Process damage over time effects
+                if ((effect.type === 'burn' || effect.type === 'poison') && 
+                    now - effect.lastTickTime >= effectData.tickInterval) {
+                    
+                    if (entityType === 'player') {
+                        damagePlayer(effectData.damagePerTick);
+                    } else {
+                        dummyHealth = Math.max(0, dummyHealth - effectData.damagePerTick);
+                        dummy.textContent = dummyHealth;
+                        if (dummyHealth <= 0) {
+                            dummyHealth = 0;
+                            dummy.textContent = dummyHealth;
+                            gainExp(50);
+                            // Auto-reset after a short delay
+                            setTimeout(resetDummy, 1500);
+                            return false;
+                        }
+                    }
+
+                    // Show damage text
+                    const damageText = document.createElement('div');
+                    damageText.className = 'combat-text';
+                    damageText.style.position = 'absolute';
+                    damageText.style.left = targetElement.style.left;
+                    damageText.style.top = (parseInt(targetElement.style.top) - 20) + 'px';
+                    damageText.style.color = effectData.color;
+                    damageText.textContent = effectData.damagePerTick;
+                    document.getElementById('gameArea').appendChild(damageText);
+                    setTimeout(() => damageText.remove(), 1000);
+
+                    effect.lastTickTime = now;
+                }
+
+                return true;
+            });
+        }
+
+        // Update movement checks to use the unified system
+        function updateCharacterPosition() {
+            if (isPlayerDead || entityStatus.player.isFrozen) return;
+            
+            let dx = 0;
+            let dy = 0;
+
+            if (pressedKeys.has('w')) dy -= 1;
+            if (pressedKeys.has('s')) dy += 1;
+            if (pressedKeys.has('a')) dx -= 1;
+            if (pressedKeys.has('d')) dx += 1;
+
+            if (dx !== 0 && dy !== 0) {
+                dx *= 0.707;
+                dy *= 0.707;
+            }
+
+            const newX = charX + dx * entityStatus.player.currentSpeed;
+            const newY = charY + dy * entityStatus.player.currentSpeed;
+
+            if (newX >= 0 && newX <= 550) charX = newX;
+            if (newY >= 0 && newY <= 350) charY = newY;
+
+            character.style.left = charX + 'px';
+            character.style.top = charY + 'px';
+        }
+
+        // Update AI movement to use the unified system
+        function updateAI() {
+            if (isPlayerDead) return;
+
+            const now = Date.now();
+            updateAiSp();
+
+            // Don't move if frozen
+            if (entityStatus.ai.isFrozen) {
+                dummy.style.left = Math.round(aiState.x) + 'px';
+                dummy.style.top = Math.round(aiState.y) + 'px';
                 return;
             }
 
-            activeStatusEffects = activeStatusEffects.filter(effect => {
-                if (effect.endTime <= now) {
-                    statusChanged = true;
-                    return false;
-                }
-
-                if (effect.type === 'burn' && now - effect.lastTickTime >= statusEffects.burn.tickInterval) {
-                    dummyHealth = Math.max(0, dummyHealth - statusEffects.burn.damagePerTick);
-                    effect.lastTickTime = now;
-                    
-                    // Only show burn damage if dummy is still alive
-                    if (dummyHealth > 0) {
-                        const burnDamage = document.createElement('div');
-                        burnDamage.className = 'combat-text';
-                        burnDamage.style.position = 'absolute';
-                        burnDamage.style.left = '470px';
-                        burnDamage.style.top = '150px';
-                        burnDamage.style.color = statusEffects.burn.color;
-                        burnDamage.textContent = statusEffects.burn.damagePerTick;
-                        document.getElementById('gameArea').appendChild(burnDamage);
-                        setTimeout(() => burnDamage.remove(), 1000);
-                    }
-                }
-
-                if (effect.type === 'poison' && now - effect.lastTickTime >= statusEffects.poison.tickInterval) {
-                    dummyHealth = Math.max(0, dummyHealth - statusEffects.poison.damagePerTick);
-                    effect.lastTickTime = now;
-                    
-                    // Only show poison damage if dummy is still alive
-                    if (dummyHealth > 0) {
-                        const poisonDamage = document.createElement('div');
-                        poisonDamage.className = 'combat-text';
-                        poisonDamage.style.position = 'absolute';
-                        poisonDamage.style.left = '470px';
-                        poisonDamage.style.top = '150px';
-                        poisonDamage.style.color = statusEffects.poison.color;
-                        poisonDamage.textContent = statusEffects.poison.damagePerTick;
-                        document.getElementById('gameArea').appendChild(poisonDamage);
-                        setTimeout(() => poisonDamage.remove(), 1000);
-                    }
-                }
-
-                // Check if dummy died from DoT damage
-                if (dummyHealth <= 0) {
-                    dummyHealth = 0;
-                    gainExp(50);
-                    activeStatusEffects = []; // Clear all status effects
-                    statusChanged = true;
-                    return false;
-                }
-
-                dummy.textContent = dummyHealth;
-                return dummyHealth > 0; // Only keep effect if dummy is still alive
-            });
-
-            if (statusChanged) {
-                updateDummyAppearance();
-            }
-        }, 100);
+            // Rest of AI movement code...
+            aiState.moveSpeed = entityStatus.ai.currentSpeed;
+            // ... existing AI movement code ...
+        }
 
         // Add dodge system
         let isDodging = false;
@@ -879,6 +1003,7 @@
             }
             character.style.animation = 'none';
             isDodging = true;
+            dodgeEndTime = Date.now() + 1000; // Set dodge end time
         }
 
         // Remove dodge effect
@@ -949,23 +1074,36 @@
             setTimeout(() => afterimage.remove(), 500);
         }
 
-        // Modify createSkillEffect to handle teleport dodge skills
+        // Add mouse position tracking
+        let mouseX = 0;
+        let mouseY = 0;
+
+        document.getElementById('gameArea').addEventListener('mousemove', (event) => {
+            const gameArea = document.getElementById('gameArea');
+            const rect = gameArea.getBoundingClientRect();
+            mouseX = event.clientX - rect.left;
+            mouseY = event.clientY - rect.top;
+        });
+
+        // Modify createSkillEffect function to use cursor position
         function createSkillEffect(type, color, damage, spCost, element, skillName, isDodgeSkill = false, cooldownMs = 1000) {
-                return () => {
-                if (playerStats.skillCooldown || playerStats.sp < spCost) {
+            return () => {
+                if (isPlayerDead || playerStats.skillCooldown || playerStats.sp < spCost || entityStatus.player.isFrozen) {
                     const errorText = document.createElement('div');
                     errorText.className = 'combat-text';
                     errorText.style.left = (charX + 25) + 'px';
                     errorText.style.top = (charY - 20) + 'px';
                     errorText.style.color = '#ff4444';
                     errorText.style.fontSize = '14px';
-                    errorText.textContent = playerStats.skillCooldown ? "Cooldown!" : "Not enough SP!";
+                    errorText.textContent = isPlayerDead ? "Cannot use skills while dead!" :
+                                         entityStatus.player.isFrozen ? "Cannot use skills while frozen!" :
+                                         playerStats.skillCooldown ? "Cooldown!" : "Not enough SP!";
                     document.getElementById('gameArea').appendChild(errorText);
                     setTimeout(() => errorText.remove(), 1500);
                     return;
                 }
 
-                // Handle dodge skills
+                // Handle dodge skills separately
                 if (isDodgeSkill) {
                     const dodgeDuration = 1000; // 1 second of dodge
                     const isTeleport = skillName.toLowerCase().includes('teleport') || 
@@ -1026,17 +1164,27 @@
                     return;
                 }
 
-                // Rest of the existing skill effect code...
-                const strBonus = type === 'melee' ? (playerStats.str * 0.1) : 0;
-                const intBonus = type === 'ranged' ? (playerStats.int * 0.1) : 0;
-                const lukBonus = Math.random() < (playerStats.luk * 0.01);
+                // Calculate damage bonuses
+                let damageMultiplier = 1.0;
+                
+                // Apply STR bonus for all attacks (4% per point, max 200% at 50 STR)
+                damageMultiplier *= (1 + Math.min(2.0, playerStats.str * 0.04));
+                
+                // Apply LUK critical hit chance (2% per point, max 100% at 50 LUK)
+                const lukBonus = Math.random() < Math.min(1.0, playerStats.luk * 0.02);
+                
+                // Calculate elemental modifier
                 const elementalMod = calculateElementalModifier(element, dummyElement);
                 
-                const burnAmplifier = element === 'fire' && activeStatusEffects.some(effect => effect.type === 'burn') 
+                // Apply burn amplifier if applicable
+                const burnAmplifier = element === 'fire' && entityStatus.player.activeEffects.some(effect => effect.type === 'burn') 
                     ? statusEffects.burn.damageAmplifier 
                     : 1;
                 
-                const finalDamage = Math.floor(damage * (1 + strBonus + intBonus) * (lukBonus ? 2 : 1) * elementalMod * burnAmplifier);
+                // Calculate final damage
+                const finalDamage = Math.floor(
+                    damage * damageMultiplier * (lukBonus ? 2 : 1) * elementalMod * burnAmplifier
+                );
 
                 playerStats.sp -= spCost;
                 updateDisplays();
@@ -1064,7 +1212,11 @@
                 }, cooldownMs);
 
                 if (type === 'ranged') {
-                    const ballSize = 20 + (playerStats.dex * 2);
+                    // Scale projectile size with DEX (reduced from 2 to 1 per point)
+                    const ballSize = 20 + (playerStats.dex * 1);
+                    // Scale projectile speed with DEX (reduced from 0.5 to 0.3 per point)
+                    const projectileSpeed = 8 + (playerStats.dex * 0.3);
+                    
                     rangedBall.style.width = `${ballSize}px`;
                     rangedBall.style.height = `${ballSize}px`;
                     rangedBall.style.background = elements[element].gradient;
@@ -1077,62 +1229,55 @@
                     rangedBall.style.left = ballX + 'px';
                     rangedBall.style.top = ballY + 'px';
 
-                    // Get direction from WASD keys
-                    let dx = 0;
-                    let dy = 0;
-                    if (pressedKeys.has('w')) dy -= 1;
-                    if (pressedKeys.has('s')) dy += 1;
-                    if (pressedKeys.has('a')) dx -= 1;
-                    if (pressedKeys.has('d')) dx += 1;
+                    // Calculate direction to mouse cursor
+                    const dx = mouseX - ballX;
+                    const dy = mouseY - ballY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const normalizedDx = dx / distance;
+                    const normalizedDy = dy / distance;
 
-                    // If no direction pressed, default to right
-                    if (dx === 0 && dy === 0) {
-                        dx = 1;
-                    }
-
-                    // Normalize diagonal movement
-                    if (dx !== 0 && dy !== 0) {
-                        const length = Math.sqrt(dx * dx + dy * dy);
-                        dx /= length;
-                        dy /= length;
-                    }
-
-                    const speed = 10; // Projectile speed
                     const moveBall = setInterval(() => {
-                        ballX += dx * speed;
-                        ballY += dy * speed;
+                        ballX += normalizedDx * projectileSpeed;
+                        ballY += normalizedDy * projectileSpeed;
 
-                        // Check if ball hits dummy (now from any direction)
-                        const dummyX = 450;
-                        const dummyY = 175;
+                        // Check if ball hits dummy (using AI's current position)
                         const distance = Math.sqrt(
-                            Math.pow(ballX - dummyX, 2) + 
-                            Math.pow(ballY - dummyY, 2)
+                            Math.pow(ballX - aiState.x, 2) + 
+                            Math.pow(ballY - aiState.y, 2)
                         );
 
-                        if (distance < 50) { // Hit if within 50 pixels of dummy center
+                        // Scale hit detection with ball size
+                        const hitRadius = ballSize / 2;
+                        if (distance < 50 + hitRadius) {
                             dummyHealth -= finalDamage;
-                            if (dummyHealth < 0) dummyHealth = 0;
-                            dummy.textContent = dummyHealth;
+                            if (dummyHealth <= 0) {
+                                dummyHealth = 0;
+                                dummy.textContent = dummyHealth;
+                                gainExp(50);
+                                // Auto-reset after a short delay
+                                setTimeout(resetDummy, 1500);
+                            } else {
+                                dummy.textContent = dummyHealth;
+                            }
                             if (dummyHealth === 0) {
                                 gainExp(50);
                             }
 
                             // Apply status effects on hit
                             if (element === 'fire') {
-                                applyStatusEffect('burn', element);
+                                applyStatusEffect('burn', element, 'ai');
                             } else if (element === 'poison') {
-                                applyStatusEffect('poison', element);
+                                applyStatusEffect('poison', element, 'ai');
                             } else if (element === 'water') {
-                                applyStatusEffect('freeze', element);
+                                applyStatusEffect('freeze', element, 'ai');
                             }
 
-                            // Show damage text
+                            // Show damage text at AI's current position
                             const damageText = document.createElement('div');
                             damageText.className = 'combat-text';
                             damageText.style.position = 'absolute';
-                            damageText.style.left = '470px';
-                            damageText.style.top = '150px';
+                            damageText.style.left = `${aiState.x}px`;
+                            damageText.style.top = `${aiState.y - 20}px`;
                             damageText.style.background = elements[element].gradient;
                             damageText.style.color = elements[element].textColor;
                             damageText.style.padding = '4px 8px';
@@ -1149,8 +1294,8 @@
                             // Show "Miss!" text if projectile goes off screen
                             const missText = document.createElement('div');
                             missText.className = 'combat-text';
-                            missText.style.left = '470px';
-                            missText.style.top = '150px';
+                            missText.style.left = `${ballX}px`;
+                            missText.style.top = `${ballY}px`;
                             missText.style.color = '#ff4444';
                             missText.style.fontSize = '14px';
                             missText.textContent = "Miss!";
@@ -1165,37 +1310,47 @@
                         }
                     }, 16);
                 } else {
+                    // For melee attacks, use cursor direction for hit detection
                     character.style.background = elements[element].gradient;
                     character.style.boxShadow = `0 0 10px ${elements[element].particleColor}`;
-                    // Calculate distance to dummy
-                    const dummyX = 450;  // dummy's X position
-                    const dummyY = 175;  // dummy's Y position
-                    const distance = Math.sqrt(Math.pow(charX - dummyX, 2) + Math.pow(charY - dummyY, 2));
+                    
+                    // Calculate distance to cursor position
+                    const distance = Math.sqrt(
+                        Math.pow(mouseX - aiState.x, 2) + 
+                        Math.pow(mouseY - aiState.y, 2)
+                    );
                     
                     // Only deal damage if within melee range (70 pixels)
                     if (distance <= 70) {
                         dummyHealth -= finalDamage;
-                        if (dummyHealth < 0) dummyHealth = 0;
-                        dummy.textContent = dummyHealth;
+                        if (dummyHealth <= 0) {
+                            dummyHealth = 0;
+                            dummy.textContent = dummyHealth;
+                            gainExp(50);
+                            // Auto-reset after a short delay
+                            setTimeout(resetDummy, 1500);
+                        } else {
+                            dummy.textContent = dummyHealth;
+                        }
                         if (dummyHealth === 0) {
                             gainExp(50);
                         }
 
                         // Apply status effects only on hit for melee attacks
                         if (element === 'fire') {
-                            applyStatusEffect('burn', element);
+                            applyStatusEffect('burn', element, 'ai');
                         } else if (element === 'poison') {
-                            applyStatusEffect('poison', element);
+                            applyStatusEffect('poison', element, 'ai');
                         } else if (element === 'water') {
-                            applyStatusEffect('freeze', element);
+                            applyStatusEffect('freeze', element, 'ai');
                         }
                         
-                        // Only show damage text if we actually hit
+                        // Show damage text at AI's current position
                         const damageText = document.createElement('div');
                         damageText.className = 'combat-text';
                         damageText.style.position = 'absolute';
-                        damageText.style.left = '470px';
-                        damageText.style.top = '150px';
+                        damageText.style.left = `${aiState.x}px`;
+                        damageText.style.top = `${aiState.y - 20}px`;
                         damageText.style.background = elements[element].gradient;
                         damageText.style.color = elements[element].textColor;
                         damageText.style.padding = '4px 8px';
@@ -1230,6 +1385,13 @@
             dummyHealth = 100;
             dummy.textContent = dummyHealth;
             playerStats.sp = Math.min(playerStats.maxSp, playerStats.sp + 20); // Restore some SP
+            
+            // Clear any active status effects on AI
+            entityStatus.ai.activeEffects = [];
+            entityStatus.ai.isFrozen = false;
+            entityStatus.ai.currentSpeed = entityStatus.ai.baseSpeed;
+            dummy.style.filter = '';  // Reset visual effects
+            
             updateDisplays();
         }
 
@@ -1239,6 +1401,8 @@
 
         // Move character based on pressed keys
         function updateCharacterPosition() {
+            if (isPlayerDead || entityStatus.player.isFrozen) return; // Don't move if dead or frozen
+
             // Diagonal movement should not be faster than cardinal movement
             let dx = 0;
             let dy = 0;
@@ -1255,8 +1419,8 @@
             }
 
             // Update position with boundary checking
-            const newX = charX + dx * moveSpeed;
-            const newY = charY + dy * moveSpeed;
+            const newX = charX + dx * entityStatus.player.currentSpeed;
+            const newY = charY + dy * entityStatus.player.currentSpeed;
 
             if (newX >= 0 && newX <= 550) charX = newX;
             if (newY >= 0 && newY <= 350) charY = newY;
@@ -1525,8 +1689,8 @@
                     };
 
                     // Create the skill using fallback data
-                    const skill = {
-                        name: skillData.name,
+                const skill = {
+                    name: skillData.name,
                         effect: createSkillEffect(
                             skillData.type,
                             elements[skillData.element].color,
@@ -1840,15 +2004,14 @@
                 playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + POTION_HEAL_AMOUNT);
                 showPotionEffect(x, y, `+${POTION_HEAL_AMOUNT} HP`, '#ff6b6b');
                 // Remove poison effect when HP potion is collected
-                activeStatusEffects = activeStatusEffects.filter(effect => effect.type !== 'poison');
-                moveSpeed = baseMovementSpeed; // Restore normal movement speed
-                updateDummyAppearance();
+                entityStatus.player.activeEffects = entityStatus.player.activeEffects.filter(effect => effect.type !== 'poison');
+                entityStatus.player.currentSpeed = entityStatus.player.baseSpeed; // Restore normal movement speed
             } else {
                 playerStats.sp = Math.min(playerStats.maxSp, playerStats.sp + POTION_SP_AMOUNT);
                 showPotionEffect(x, y, `+${POTION_SP_AMOUNT} SP`, '#6b88ff');
             }
             updateDisplays();
-            document.getElementById('gameArea').removeChild(potion);
+            potion.remove();  // Use remove() instead of removeChild
             activePotion = null;
         }
 
@@ -2054,6 +2217,654 @@
             }, 2000);
 
             updateStats();
+        }
+
+        // Add AI properties to the game state
+        const aiState = {
+            x: 450,
+            y: 175,
+            targetX: 450,
+            targetY: 175,
+            moveSpeed: 3,
+            attackRange: 100,
+            skillCooldown: false,
+            lastAttackTime: 0,
+            attackCooldown: 2500,
+            sp: 50,
+            maxSp: 50,
+            lastSpRegen: Date.now(),
+            isAttacking: false,
+            skills: [
+                { name: 'Fireball', element: 'fire', type: 'ranged', damage: 15, cooldown: 6000, spCost: 20 },
+                { name: 'Ice Shard', element: 'water', type: 'ranged', damage: 12, cooldown: 5000, spCost: 15 },
+                { name: 'Poison Cloud', element: 'poison', type: 'ranged', damage: 8, cooldown: 7000, spCost: 25 },
+                { name: 'Shadow Blink', element: 'shadow', type: 'dodge', damage: 0, cooldown: 8000, spCost: 30 }
+            ],
+            lastSkillTime: 0,
+            hasTarget: false,
+            isBlinking: false
+        };
+
+        // Add AI SP regeneration
+        function updateAiSp() {
+            const now = Date.now();
+            const timePassed = now - aiState.lastSpRegen;
+            const spRegen = (timePassed / 1000) * 2; // 2 SP per second
+            aiState.sp = Math.min(aiState.maxSp, aiState.sp + spRegen);
+            aiState.lastSpRegen = now;
+        }
+
+        // Update player death check
+        function checkPlayerDeath() {
+            if (playerStats.hp <= 0 && !document.querySelector('#gameArea > div[style*="rgba(0, 0, 0, 0.7)"]')) {
+                playerStats.hp = 0;  // Ensure health is exactly 0
+                updateDisplays();
+                
+                // Create death overlay
+                const deathOverlay = document.createElement('div');
+                deathOverlay.id = 'deathOverlay';
+                deathOverlay.style.position = 'absolute';
+                deathOverlay.style.top = '0';
+                deathOverlay.style.left = '0';
+                deathOverlay.style.width = '100%';
+                deathOverlay.style.height = '100%';
+                deathOverlay.style.background = 'rgba(0, 0, 0, 0.7)';
+                deathOverlay.style.display = 'flex';
+                deathOverlay.style.flexDirection = 'column';
+                deathOverlay.style.justifyContent = 'center';
+                deathOverlay.style.alignItems = 'center';
+                deathOverlay.style.color = '#ff4444';
+                deathOverlay.style.fontSize = '32px';
+                deathOverlay.style.zIndex = '1000';
+                deathOverlay.innerHTML = `
+                    <div style="text-shadow: 2px 2px 4px #000;">YOU DIED</div>
+                    <button onclick="respawnPlayer()" style="
+                        margin-top: 20px;
+                        padding: 10px 20px;
+                        font-size: 18px;
+                        background: #ff4444;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        box-shadow: 2px 2px 4px rgba(0,0,0,0.5);">
+                        Respawn
+                    </button>
+                `;
+                document.getElementById('gameArea').appendChild(deathOverlay);
+
+                // Disable movement and skills
+                isPlayerDead = true;
+            }
+        }
+
+        // Add respawn function
+        function respawnPlayer() {
+            // Reset player stats
+            playerStats.hp = playerStats.maxHp;
+            playerStats.sp = playerStats.maxSp;
+            isPlayerDead = false;
+            
+            // Clear all status effects on player
+            entityStatus.player.activeEffects = [];
+            entityStatus.player.isFrozen = false;
+            entityStatus.player.currentSpeed = entityStatus.player.baseSpeed;
+            character.style.filter = '';  // Reset visual effects
+            
+            // Reset position
+            charX = 275;
+            charY = 175;
+            character.style.left = charX + 'px';
+            character.style.top = charY + 'px';
+            
+            // Remove ALL death overlays
+            const deathOverlays = document.querySelectorAll('#gameArea > div[style*="rgba(0, 0, 0, 0.7)"]');
+            deathOverlays.forEach(overlay => overlay.remove());
+            
+            // Update displays
+            updateDisplays();
+        }
+
+        // Update damagePlayer function to check dodge state
+        function damagePlayer(amount) {
+            if (isDodging) {
+                // Show dodge message
+                const dodgeText = document.createElement('div');
+                dodgeText.className = 'combat-text';
+                dodgeText.style.position = 'absolute';
+                dodgeText.style.left = (charX + 25) + 'px';
+                dodgeText.style.top = (charY - 20) + 'px';
+                dodgeText.style.color = '#00ff00';  // Green color for dodge
+                dodgeText.style.fontSize = '20px';
+                dodgeText.style.fontWeight = 'bold';
+                dodgeText.textContent = 'Dodged!';
+                document.getElementById('gameArea').appendChild(dodgeText);
+                setTimeout(() => dodgeText.remove(), 1000);
+                return;
+            }
+            playerStats.hp = Math.max(0, playerStats.hp - amount);
+            checkPlayerDeath();
+            updateDisplays();
+        }
+
+        // Update AI skill usage to check SP and apply correct damage
+        function aiUseSkill(skill, targetX, targetY) {
+            if (aiState.sp < skill.spCost || entityStatus.ai.isFrozen) return;
+            
+            aiState.sp -= skill.spCost;
+            
+            const projectile = document.createElement('div');
+            projectile.className = 'ai-skill';
+            projectile.style.position = 'absolute';
+            projectile.style.left = aiState.x + 'px';
+            projectile.style.top = aiState.y + 'px';
+            projectile.style.width = '20px';
+            projectile.style.height = '20px';
+            projectile.style.borderRadius = '50%';
+            
+            // Style based on element
+            switch(skill.element) {
+                case 'fire':
+                    projectile.style.background = 'linear-gradient(45deg, #ff4400, #ff8800)';
+                    projectile.style.boxShadow = '0 0 10px #ff4400';
+                    break;
+                case 'water':
+                    projectile.style.background = 'linear-gradient(45deg, #00aaff, #0044ff)';
+                    projectile.style.boxShadow = '0 0 10px #00aaff';
+                    break;
+                case 'poison':
+                    projectile.style.background = 'linear-gradient(45deg, #00ff44, #88ff00)';
+                    projectile.style.boxShadow = '0 0 10px #00ff44';
+                    break;
+            }
+            
+            document.getElementById('gameArea').appendChild(projectile);
+
+            // Animate skill
+            const angle = Math.atan2(targetY - aiState.y, targetX - aiState.x);
+            const speed = 8;
+            const moveSkill = setInterval(() => {
+                const x = parseInt(projectile.style.left);
+                const y = parseInt(projectile.style.top);
+                
+                projectile.style.left = (x + Math.cos(angle) * speed) + 'px';
+                projectile.style.top = (y + Math.sin(angle) * speed) + 'px';
+
+                // Check if hit player
+                const distToPlayer = Math.sqrt(
+                    Math.pow(x - targetX, 2) + 
+                    Math.pow(y - targetY, 2)
+                );
+
+                if (distToPlayer < 30) {
+                    if (isDodging) {
+                        // Show dodge message
+                        const dodgeText = document.createElement('div');
+                        dodgeText.className = 'combat-text';
+                        dodgeText.style.position = 'absolute';
+                        dodgeText.style.left = (charX + 25) + 'px';
+                        dodgeText.style.top = (charY - 20) + 'px';
+                        dodgeText.style.color = '#00ff00';
+                        dodgeText.style.fontSize = '20px';
+                        dodgeText.style.fontWeight = 'bold';
+                        dodgeText.textContent = 'Dodged!';
+                        document.getElementById('gameArea').appendChild(dodgeText);
+                        setTimeout(() => dodgeText.remove(), 1000);
+                    } else {
+                        damagePlayer(skill.damage);
+                        // Apply status effects to player
+                        if (skill.element === 'fire') {
+                            applyStatusEffect('burn', 'fire', 'player');
+                        } else if (skill.element === 'poison') {
+                            applyStatusEffect('poison', 'poison', 'player');
+                        } else if (skill.element === 'water') {
+                            applyStatusEffect('freeze', 'water', 'player');
+                        }
+
+                        // Show damage text only if not dodging
+                        const damageText = document.createElement('div');
+                        damageText.className = 'combat-text';
+                        damageText.style.position = 'absolute';
+                        damageText.style.left = targetX + 'px';
+                        damageText.style.top = (targetY - 20) + 'px';
+                        damageText.style.color = '#ff4444';
+                        damageText.textContent = skill.damage;
+                        document.getElementById('gameArea').appendChild(damageText);
+                        setTimeout(() => damageText.remove(), 1000);
+                    }
+                    clearInterval(moveSkill);
+                    projectile.remove();
+                } else if (x < 0 || x > 600 || y < 0 || y > 400) {
+                    clearInterval(moveSkill);
+                    projectile.remove();
+                }
+            }, 16);
+        }
+
+        // Update AI position and behavior
+        function updateAI() {
+            if (isPlayerDead) return;
+
+            const now = Date.now();
+            updateAiSp();
+
+            // Don't move if frozen
+            if (entityStatus.ai.isFrozen) {
+                dummy.style.left = Math.round(aiState.x) + 'px';
+                dummy.style.top = Math.round(aiState.y) + 'px';
+                return;
+            }
+
+            // Calculate distance to player
+            const distToPlayer = Math.sqrt(
+                Math.pow(aiState.x - charX, 2) + 
+                Math.pow(aiState.y - charY, 2)
+            );
+
+            // AI Combat
+            if (distToPlayer < aiState.attackRange && !isPlayerDead) {
+                // Basic attack if cooldown is ready
+                if (now - aiState.lastAttackTime > aiState.attackCooldown) {
+                    aiBasicAttack(charX, charY);
+                    aiState.lastAttackTime = now;
+                }
+
+                // Use skills if available and has enough SP
+                if (now - aiState.lastSkillTime > 5000) {
+                    const availableSkills = aiState.skills.filter(skill => 
+                        (!skill.lastUseTime || now - skill.lastUseTime > skill.cooldown) &&
+                        aiState.sp >= skill.spCost
+                    );
+                    
+                    if (availableSkills.length > 0) {
+                        const skill = availableSkills[Math.floor(Math.random() * availableSkills.length)];
+                        if (skill.type === 'dodge') {
+                            aiBlinkSkill();
+                        } else {
+                            aiUseSkill(skill, charX, charY);
+                        }
+                        skill.lastUseTime = now;
+                        aiState.lastSkillTime = now;
+                        aiState.sp -= skill.spCost;
+                    }
+                }
+            }
+
+            // Only update movement if not blinking
+            if (!aiState.isBlinking) {
+                // ... rest of the existing AI movement code ...
+                // AI Movement with improved independence
+                if (!aiState.hasTarget || Math.random() < 0.02) {
+                    const pattern = Math.random();
+                    
+                    if (pattern < 0.3) {
+                        const circleRadius = 100;
+                        const angle = (now / 1000) % (2 * Math.PI);
+                        aiState.targetX = 300 + Math.cos(angle) * circleRadius;
+                        aiState.targetY = 200 + Math.sin(angle) * circleRadius;
+                    } else if (pattern < 0.6) {
+                        const radius = 80;
+                        const t = (now / 2000) % (2 * Math.PI);
+                        aiState.targetX = 300 + radius * Math.cos(t);
+                        aiState.targetY = 200 + radius * Math.sin(2 * t) / 2;
+                    } else {
+                        const angle = Math.random() * Math.PI * 2;
+                        const distance = 50 + Math.random() * 100;
+                        aiState.targetX = aiState.x + Math.cos(angle) * distance;
+                        aiState.targetY = aiState.y + Math.sin(angle) * distance;
+                    }
+                    
+                    aiState.hasTarget = true;
+                    aiState.patternStartTime = now;
+                }
+
+                // Keep AI in bounds with padding
+                const padding = 50;
+                aiState.targetX = Math.max(padding, Math.min(550 - padding, aiState.targetX));
+                aiState.targetY = Math.max(padding, Math.min(350 - padding, aiState.targetY));
+
+                // Smooth movement towards target
+                const dx = aiState.targetX - aiState.x;
+                const dy = aiState.targetY - aiState.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist > 1) {
+                    aiState.x += (dx / dist) * aiState.moveSpeed;
+                    aiState.y += (dy / dist) * aiState.moveSpeed;
+                }
+
+                // Apply movement with rounding to prevent sub-pixel jitter
+                dummy.style.left = Math.round(aiState.x) + 'px';
+                dummy.style.top = Math.round(aiState.y) + 'px';
+            }
+        }
+
+        // AI basic attack with reduced damage
+        function aiBasicAttack(targetX, targetY) {
+            if (isPlayerDead || aiState.isAttacking || entityStatus.ai.isFrozen) return;
+
+            aiState.isAttacking = true;
+            const damage = Math.floor(Math.random() * 4) + 4; // 4-7 damage
+            
+            const attackEffect = document.createElement('div');
+            attackEffect.className = 'ai-attack';
+            attackEffect.style.position = 'absolute';
+            attackEffect.style.left = aiState.x + 'px';
+            attackEffect.style.top = aiState.y + 'px';
+            attackEffect.style.width = '10px';
+            attackEffect.style.height = '10px';
+            attackEffect.style.background = '#ff4444';
+            attackEffect.style.borderRadius = '50%';
+            document.getElementById('gameArea').appendChild(attackEffect);
+
+            // Animate attack towards player with reduced speed
+            const angle = Math.atan2(targetY - aiState.y, targetX - aiState.x);
+            const speed = 8; // Reduced from 15 to 8 for more reasonable speed
+            const moveAttack = setInterval(() => {
+                const x = parseInt(attackEffect.style.left);
+                const y = parseInt(attackEffect.style.top);
+                
+                attackEffect.style.left = (x + Math.cos(angle) * speed) + 'px';
+                attackEffect.style.top = (y + Math.sin(angle) * speed) + 'px';
+
+                // Check if hit player
+                const distToPlayer = Math.sqrt(
+                    Math.pow(x - targetX, 2) + 
+                    Math.pow(y - targetY, 2)
+                );
+
+                if (distToPlayer < 30) {
+                    if (isDodging) {
+                        // Show dodge message
+                        const dodgeText = document.createElement('div');
+                        dodgeText.className = 'combat-text';
+                        dodgeText.style.position = 'absolute';
+                        dodgeText.style.left = (charX + 25) + 'px';
+                        dodgeText.style.top = (charY - 20) + 'px';
+                        dodgeText.style.color = '#00ff00';
+                        dodgeText.style.fontSize = '20px';
+                        dodgeText.style.fontWeight = 'bold';
+                        dodgeText.textContent = 'Dodged!';
+                        document.getElementById('gameArea').appendChild(dodgeText);
+                        setTimeout(() => dodgeText.remove(), 1000);
+                    } else {
+                        damagePlayer(damage);
+                        // Show damage text only if not dodging
+                        const damageText = document.createElement('div');
+                        damageText.className = 'combat-text';
+                        damageText.style.position = 'absolute';
+                        damageText.style.left = targetX + 'px';
+                        damageText.style.top = (targetY - 20) + 'px';
+                        damageText.style.color = '#ff4444';
+                        damageText.textContent = damage;
+                        document.getElementById('gameArea').appendChild(damageText);
+                        setTimeout(() => damageText.remove(), 1000);
+                    }
+                    clearInterval(moveAttack);
+                    attackEffect.remove();
+                    aiState.isAttacking = false;
+                } else if (x < 0 || x > 600 || y < 0 || y > 400) {
+                    // Out of bounds
+                    clearInterval(moveAttack);
+                    attackEffect.remove();
+                    aiState.isAttacking = false; // Reset attacking flag
+                }
+            }, 16);
+        }
+
+        // Add AI blink function
+        function aiBlinkSkill() {
+            if (entityStatus.ai.isFrozen) return;
+            
+            // Create afterimage effect
+            const afterimage = document.createElement('div');
+            afterimage.style.position = 'absolute';
+            afterimage.style.width = '50px';
+            afterimage.style.height = '50px';
+            afterimage.style.background = 'rgba(128, 0, 128, 0.3)';
+            afterimage.style.borderRadius = '50%';
+            afterimage.style.left = aiState.x + 'px';
+            afterimage.style.top = aiState.y + 'px';
+            afterimage.style.animation = 'fadeOut 0.5s forwards';
+            document.getElementById('gameArea').appendChild(afterimage);
+
+            // Get all projectiles in the game area
+            const projectiles = Array.from(document.querySelectorAll('#rangedBall')).filter(p => p.style.display !== 'none');
+            
+            let newX, newY;
+            
+            if (projectiles.length > 0) {
+                // Find the closest projectile
+                const closestProjectile = projectiles.reduce((closest, current) => {
+                    const currentDist = Math.sqrt(
+                        Math.pow(parseInt(current.style.left) - aiState.x, 2) + 
+                        Math.pow(parseInt(current.style.top) - aiState.y, 2)
+                    );
+                    const closestDist = closest ? Math.sqrt(
+                        Math.pow(parseInt(closest.style.left) - aiState.x, 2) + 
+                        Math.pow(parseInt(closest.style.top) - aiState.y, 2)
+                    ) : Infinity;
+                    
+                    return currentDist < closestDist ? current : closest;
+                }, null);
+                
+                if (closestProjectile) {
+                    // Calculate projectile direction
+                    const projX = parseInt(closestProjectile.style.left);
+                    const projY = parseInt(closestProjectile.style.top);
+                    const projAngle = Math.atan2(projY - aiState.y, projX - aiState.x);
+                    
+                    // Blink perpendicular to the projectile's path
+                    const perpAngle = projAngle + (Math.PI / 2) * (Math.random() < 0.5 ? 1 : -1);
+                    const blinkDistance = 150;
+                    
+                    // Calculate new position perpendicular to projectile
+                    newX = Math.max(50, Math.min(550, aiState.x + Math.cos(perpAngle) * blinkDistance));
+                    newY = Math.max(50, Math.min(350, aiState.y + Math.sin(perpAngle) * blinkDistance));
+                }
+            }
+            
+            // If no projectiles or invalid position, use default random blink
+            if (!newX || !newY) {
+                let attempts = 0;
+                do {
+                    newX = Math.max(50, Math.min(550, aiState.x + (Math.random() - 0.5) * 300));
+                    newY = Math.max(50, Math.min(350, aiState.y + (Math.random() - 0.5) * 300));
+                    attempts++;
+                } while (attempts < 10 && Math.sqrt(Math.pow(newX - charX, 2) + Math.pow(newY - charY, 2)) < 100);
+            }
+
+            // Apply blink
+            aiState.isBlinking = true;
+            aiState.x = newX;
+            aiState.y = newY;
+            dummy.style.opacity = '0.3';
+            dummy.style.filter = 'blur(4px) brightness(1.5)';
+            dummy.style.transition = 'all 0.2s ease-out';
+
+            // Show blink effect text
+            const blinkText = document.createElement('div');
+            blinkText.className = 'combat-text';
+            blinkText.style.position = 'absolute';
+            blinkText.style.left = (aiState.x + 25) + 'px';
+            blinkText.style.top = (aiState.y - 40) + 'px';
+            blinkText.style.color = '#9370DB';
+            blinkText.style.fontSize = '20px';
+            blinkText.style.fontWeight = 'bold';
+            blinkText.textContent = '⚡ Blink!';
+            document.getElementById('gameArea').appendChild(blinkText);
+            setTimeout(() => blinkText.remove(), 1000);
+
+            // Reset AI appearance after blink
+            setTimeout(() => {
+                dummy.style.opacity = '1';
+                dummy.style.filter = 'none';
+                dummy.style.transition = '';
+                aiState.isBlinking = false;
+            }, 200);
+        }
+
+        // Add AI update to game loop
+        setInterval(updateAI, 16);
+
+        // Add global variable for player state
+        let isPlayerDead = false;
+
+        // Add player freeze state
+        let isPlayerFrozen = false;
+        let basePlayerMoveSpeed = 5;
+        let currentMoveSpeed = basePlayerMoveSpeed;
+
+        // Add save/load system
+        function toggleSaveLoadPanel() {
+            const panel = document.getElementById('saveLoadPanel');
+            if (panel.style.display === 'none' || !panel.style.display) {
+                updateSaveSlots();
+                panel.style.display = 'block';
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        function updateSaveSlots() {
+            const slotsContainer = document.getElementById('saveSlots');
+            slotsContainer.innerHTML = '';
+
+            // Create 5 save slots
+            for (let i = 1; i <= 5; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'save-slot';
+                
+                // Load saved data
+                const savedData = localStorage.getItem(`skillSet_${i}`);
+                const saveDate = localStorage.getItem(`skillSet_${i}_date`);
+                
+                // Create slot content
+                const slotInfo = document.createElement('div');
+                slotInfo.innerHTML = `Slot ${i}${savedData ? `<br><small>${saveDate}</small>` : '<br><small>Empty</small>'}`;
+                
+                // Create buttons
+                const saveBtn = document.createElement('button');
+                saveBtn.className = 'save';
+                saveBtn.textContent = 'Save';
+                saveBtn.onclick = () => saveSkills(i);
+                
+                const loadBtn = document.createElement('button');
+                loadBtn.className = 'load';
+                loadBtn.textContent = 'Load';
+                loadBtn.disabled = !savedData;
+                loadBtn.onclick = () => loadSkills(i);
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete';
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.disabled = !savedData;
+                deleteBtn.onclick = () => deleteSkills(i);
+                
+                // Add buttons to slot
+                slot.appendChild(slotInfo);
+                slot.appendChild(saveBtn);
+                slot.appendChild(loadBtn);
+                slot.appendChild(deleteBtn);
+                
+                slotsContainer.appendChild(slot);
+            }
+        }
+
+        function saveSkills(slotNumber) {
+            const skillsToSave = skills.map(skill => ({
+                name: skill.name,
+                description: skill.description,
+                damage: skill.damage,
+                element: skill.element,
+                spCost: skill.spCost,
+                cooldownMs: skill.cooldownMs,
+                isDodgeSkill: skill.isDodgeSkill,
+                powerLevel: skill.powerLevel
+            }));
+
+            const currentDate = new Date().toLocaleString();
+            
+            localStorage.setItem(`skillSet_${slotNumber}`, JSON.stringify(skillsToSave));
+            localStorage.setItem(`skillSet_${slotNumber}_date`, currentDate);
+            
+            // Show success message
+            const successText = document.createElement('div');
+            successText.className = 'combat-text';
+            successText.style.position = 'fixed';
+            successText.style.left = '50%';
+            successText.style.top = '20%';
+            successText.style.transform = 'translate(-50%, -50%)';
+            successText.style.color = '#4CAF50';
+            successText.style.fontSize = '20px';
+            successText.textContent = `Skills saved to Slot ${slotNumber}!`;
+            document.body.appendChild(successText);
+            setTimeout(() => successText.remove(), 2000);
+            
+            updateSaveSlots();
+        }
+
+        function loadSkills(slotNumber) {
+            const savedSkills = localStorage.getItem(`skillSet_${slotNumber}`);
+            if (!savedSkills) return;
+
+            const skillsData = JSON.parse(savedSkills);
+            skills = skillsData.map(skillData => ({
+                name: skillData.name,
+                effect: createSkillEffect(
+                    skillData.element === 'neutral' ? 'ranged' : 'ranged',
+                    elements[skillData.element].color,
+                    skillData.damage,
+                    skillData.spCost,
+                    skillData.element,
+                    skillData.name,
+                    skillData.isDodgeSkill,
+                    skillData.cooldownMs
+                ),
+                description: skillData.description,
+                damage: skillData.damage,
+                element: skillData.element,
+                spCost: skillData.spCost,
+                cooldownMs: skillData.cooldownMs,
+                isDodgeSkill: skillData.isDodgeSkill,
+                powerLevel: skillData.powerLevel
+            }));
+
+            // Show success message
+            const successText = document.createElement('div');
+            successText.className = 'combat-text';
+            successText.style.position = 'fixed';
+            successText.style.left = '50%';
+            successText.style.top = '20%';
+            successText.style.transform = 'translate(-50%, -50%)';
+            successText.style.color = '#2196F3';
+            successText.style.fontSize = '20px';
+            successText.textContent = `Skills loaded from Slot ${slotNumber}!`;
+            document.body.appendChild(successText);
+            setTimeout(() => successText.remove(), 2000);
+
+            updateSkillList();
+            toggleSaveLoadPanel();
+        }
+
+        function deleteSkills(slotNumber) {
+            localStorage.removeItem(`skillSet_${slotNumber}`);
+            localStorage.removeItem(`skillSet_${slotNumber}_date`);
+            
+            // Show success message
+            const successText = document.createElement('div');
+            successText.className = 'combat-text';
+            successText.style.position = 'fixed';
+            successText.style.left = '50%';
+            successText.style.top = '20%';
+            successText.style.transform = 'translate(-50%, -50%)';
+            successText.style.color = '#f44336';
+            successText.style.fontSize = '20px';
+            successText.textContent = `Slot ${slotNumber} cleared!`;
+            document.body.appendChild(successText);
+            setTimeout(() => successText.remove(), 2000);
+            
+            updateSaveSlots();
         }
     </script>
 </body>
