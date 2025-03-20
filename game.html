@@ -4,187 +4,286 @@
     <meta charset="UTF-8">
     <title>My AI Skill Game with Ollama</title>
     <style>
+        :root {
+            /* Game dimensions */
+            --game-width: 1366px;
+            --game-height: 768px;
+            /* Entity sizes */
+            --character-size: 50px;
+            --projectile-size: 20px;
+        }
+
         body {
             font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
         }
+
         #gameArea {
-            width: 600px;
-            height: 400px;
-            border: 2px solid black;
-            background: lightgray;
+            width: var(--game-width);
+            height: var(--game-height);
+            border: 2px solid #333;
+            background: #2a2a2a;
             position: relative;
             overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
+
+        /* Character and Dummy */
         #character {
-            width: 50px;
-            height: 50px;
-            background: blue;
+            width: var(--character-size);
+            height: var(--character-size);
+            background: #4a90e2;
             border-radius: 50%;
             position: absolute;
-            top: 175px;
-            left: 275px;
+            top: 384px;  /* Centered vertically */
+            left: 683px; /* Centered horizontally */
+            box-shadow: 0 0 10px rgba(74, 144, 226, 0.5);
         }
-        #rangedBall {
-            width: 20px;
-            height: 20px;
-            background: red;
-            border-radius: 50%;
-            position: absolute;
-            display: none;
-        }
+
         #dummy {
-            width: 50px;
-            height: 50px;
+            width: var(--character-size);
+            height: var(--character-size);
+            background: #e24a4a;
+            border-radius: 50%;
+            position: absolute;
+            top: 384px;  /* Centered vertically */
+            left: 1024px; /* 3/4 of the width */
+            text-align: center;
+            line-height: var(--character-size);
+            color: white;
+            box-shadow: 0 0 10px rgba(226, 74, 74, 0.5);
+        }
+
+        #rangedBall {
+            width: var(--projectile-size);
+            height: var(--projectile-size);
             background: red;
             border-radius: 50%;
             position: absolute;
-            top: 175px;
-            left: 450px;
-            text-align: center;
-            line-height: 50px;
-            color: white;
-        }
-        #skillInput {
-            margin-top: 10px;
-            width: 300px;
-        }
-        #skillList {
-            margin-top: 10px;
-            width: 300px;
-            position: relative;
-        }
-        .skill {
-            margin-bottom: 10px;
-            position: relative;
-            background: rgba(0, 0, 0, 0.05);
-            padding: 2px;
-            border-radius: 5px;
-        }
-        .skill button {
-            width: calc(100%);
-            padding: 15px;
-            margin-bottom: 5px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.2);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .skill-shortcut {
-            background: rgba(0, 0, 0, 0.2);
-            padding: 3px 8px;
-            border-radius: 3px;
-            margin-left: 8px;
-            font-size: 0.9em;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .skill-shortcut:hover {
-            background: rgba(0, 0, 0, 0.4);
-        }
-        .skill-shortcut.listening {
-            animation: pulse 1s infinite;
-            background: rgba(0, 255, 0, 0.2);
-        }
-        .skill-description {
-            font-size: 12px;
-            white-space: pre-line;
-            line-height: 1.4;
-            padding: 8px;
-            border-radius: 4px;
-            background: rgba(255, 255, 255, 0.9);
             display: none;
         }
-        .skill:hover .skill-description {
-            display: block;
-            position: absolute;
-            left: 100%;
-            top: 0;
-            width: 300px;
-            z-index: 1000;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            margin-left: 10px;
-        }
-        .element-tag {
-            display: inline-block;
-            padding: 2px 6px;
-            border-radius: 3px;
-            color: white;
-            font-weight: bold;
-            margin-right: 5px;
-        }
-        .technical-details {
-            margin-top: 8px;
-            padding: 8px;
-            background: rgba(0, 0, 0, 0.05);
-            border-radius: 4px;
-        }
+
+        /* Stats Panel - Upper Left */
         #statsPanel {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(0, 0, 0, 0.7);
+            top: 150px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
             color: white;
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 12px;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+            min-width: 200px;
         }
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: 2px 0;
-        }
-        .stat-button {
-            width: 20px;
-            height: 20px;
-            margin-left: 5px;
-            display: none;
-        }
-        #expBar {
-            width: 100px;
-            height: 10px;
-            background: #333;
-            margin-top: 5px;
-        }
-        #expFill {
-            width: 0%;
-            height: 100%;
-            background: #00ff00;
-        }
+
+        /* HP/SP Bars - Upper Left, next to Stats */
         #hpSpBar {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.7);
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
             color: white;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 15px;
+            border-radius: 8px;
+            backdrop-filter: blur(5px);
         }
+
         .bar {
-            width: 100px;
-            height: 10px;
+            width: 150px;
+            height: 12px;
             margin: 5px 0;
+            border-radius: 6px;
+            overflow: hidden;
         }
-        #hpBar {
+
+        #hpBar, #spBar { 
             background: #333;
+            width: 150px;
+            height: 12px;
+            margin: 5px 0;
+            border-radius: 6px;
+            overflow: hidden;
         }
+
+        #hpFill, #spFill {
+            width: 100%;
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
         #hpFill {
-            width: 100%;
-            height: 100%;
-            background: #ff0000;
+            background: linear-gradient(to right, #ff4444, #ff6b6b);
         }
-        #spBar {
-            background: #333;
-        }
+
         #spFill {
-            width: 100%;
-            height: 100%;
-            background: #0000ff;
+            background: linear-gradient(to right, #4444ff, #6b6bff);
         }
+
+        /* Skills - Center Bottom */
+        #skillList {
+            position: absolute;
+            bottom: 0px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 1080px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 8px;
+            backdrop-filter: blur(5px);
+        }
+
+        .skill {
+            flex: 0 0 auto;
+            margin: 0 5px;
+            position: relative;
+        }
+
+        .skill button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .skill button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Skill Description Tooltip */
+        .skill-description {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: #e8e8e8;
+            padding: 12px 15px;
+            border-radius: 8px;
+            font-size: 13px;
+            width: max-content;
+            max-width: 300px;
+            white-space: normal;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            line-height: 1.5;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            letter-spacing: 0.2px;
+        }
+
+        .skill-description h3 {
+            color: #fff;
+            font-size: 14px;
+            margin: 0 0 8px 0;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 6px;
+        }
+
+        .skill-description .description {
+            color: #d4d4d4;
+            margin: 8px 0;
+            font-style: italic;
+        }
+
+        .skill-description .stats {
+            color: #b8b8b8;
+            font-size: 12px;
+            margin: 8px 0;
+            padding: 8px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .skill-description .stats div {
+            margin: 4px 0;
+        }
+
+        .skill-description .element {
+            font-weight: 500;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .skill-description .damage {
+            color: #ff7676;
+        }
+
+        .skill-description .sp-cost {
+            color: #7676ff;
+        }
+
+        .skill-description .cooldown {
+            color: #76ff76;
+        }
+
+        .skill-description .element-description {
+            font-size: 12px;
+            margin: 6px 0 10px 0;
+            padding: 0 6px;
+            font-style: italic;
+        }
+
+        .skill-description .element-info {
+            font-size: 12px;
+            margin-top: 8px;
+            color: #a8a8a8;
+        }
+
+        .skill-description .element-info div {
+            margin: 4px 0;
+        }
+
+        .skill:hover .skill-description {
+            opacity: 1;
+        }
+
+        /* Input and Controls - Upper Right */
+        #skillInput {
+            position: absolute;
+            top: calc(var(--game-height) * 0.15);  /* 20% from top */
+            right: calc(var(--game-width) * 0.5);  /* 10% from right */
+            width: calc(var(--game-width) * 0.25);  /* 25% of game width */
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: white;
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s ease;
+            z-index: 100;
+        }
+
+        #skillInput:focus {
+            border-color: #666;
+        }
+
+        #skillInput::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Combat Text and Effects */
         .combat-text {
             position: absolute;
             font-weight: bold;
@@ -193,29 +292,8 @@
             pointer-events: none;
             z-index: 1000;
         }
-        .skill-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 170%;
-            gap: 8px;
-        }
-        .remove-skill {
-            background: none;
-            color: #ff4444;
-            border: none;
-            padding: 0;
-            cursor: pointer;
-            font-size: 40px;
-            font-weight: bold;
-            width: fit-content;
-            height: fit-content;
-            min-width: 0;
-            display: inline;
-        }
-        .remove-skill:hover {
-            color: #ff0000;
-        }
+
+        /* Potions */
         .potion {
             width: 20px;
             height: 20px;
@@ -225,14 +303,17 @@
             animation: pulse 1s infinite;
             z-index: 100;
         }
+
         .hp-potion {
             background: radial-gradient(circle at 30% 30%, #ff6b6b, #ff0000);
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
+
         .sp-potion {
             background: radial-gradient(circle at 30% 30%, #6b88ff, #0000ff);
             box-shadow: 0 0 10px rgba(0, 0, 255, 0.5);
         }
+
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.1); }
@@ -250,18 +331,112 @@
             }
         }
 
-        #dummy[data-status]::before {
-            content: attr(data-status);
+        /* Element Tags */
+        .element-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: white;
+            font-size: 12px;
+            margin-right: 5px;
+        }
+
+        /* Stat Buttons */
+        .stat-button {
+            width: 20px;
+            height: 20px;
+            margin-left: 5px;
+            background: #4a90e2;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            display: none;
+        }
+
+        .stat-button:hover {
+            background: #357abd;
+        }
+
+        /* Experience Bar */
+        #expBar {
+            width: 100%;
+            height: 4px;
+            background: #333;
+            margin-top: 5px;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        #expFill {
+            height: 100%;
+            background: linear-gradient(to right, #4CAF50, #8BC34A);
+            transition: width 0.3s ease;
+        }
+
+        /* Skill Header */
+        .skill-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 170%;
+            gap: 8px;
+        }
+
+        /* Remove Skill Button */
+        .remove-skill {
             position: absolute;
-            top: -25px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 20px;
+            top: -8px;
+            right: -8px;
+            background: white;
+            color: #ff0000;
+            border: 2px solid #ff0000;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            opacity: 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
-        .skill-button {
-            position: relative;
+
+        .skill:hover .remove-skill {
+            opacity: 1;
         }
-        
+
+        .remove-skill:hover {
+            background: #ffeeee;
+            color: #ff0000;
+            transform: scale(1.1);
+        }
+
+        /* Skill Shortcut */
+        .skill-shortcut {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 3px 8px;
+            border-radius: 3px;
+            margin-left: 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .skill-shortcut:hover {
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .skill-shortcut.listening {
+            animation: pulse 1s infinite;
+            background: rgba(0, 255, 0, 0.2);
+        }
+
+        /* Key Bind */
         .key-bind {
             position: absolute;
             top: -15px;
@@ -286,6 +461,7 @@
             100% { box-shadow: 0 0 0 0 rgba(0, 255, 0, 0); }
         }
 
+        /* Rebind Tooltip */
         .rebind-tooltip {
             position: fixed;
             background: rgba(0, 0, 0, 0.9);
@@ -298,6 +474,8 @@
             border: 1px solid #666;
             display: none;
         }
+
+        /* Shortcut Tooltip */
         .shortcut-tooltip {
             position: fixed;
             background: rgba(0, 0, 0, 0.9);
@@ -311,6 +489,7 @@
             display: none;
         }
 
+        /* Warning Message */
         .warning-message {
             position: fixed;
             background: rgba(255, 0, 0, 0.9);
@@ -330,22 +509,27 @@
             100% { opacity: 0; }
         }
 
+        /* AI Loading */
         .ai-loading {
+            color: #fff;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
             display: none;
-            margin-left: 10px;
-            color: #666;
-            font-style: italic;
+            text-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
         }
 
+        /* AI Error */
         .ai-error {
             color: #ff4444;
-            margin-top: 5px;
-            padding: 8px;
-            border-radius: 4px;
-            background: rgba(255, 0, 0, 0.1);
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
             display: none;
+            text-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
         }
 
+        /* Floating Text */
         .floating-text {
             position: absolute;
             animation: floatUp 2s forwards;
@@ -355,6 +539,7 @@
             z-index: 1000;
         }
 
+        /* Level Up */
         .level-up {
             color: #FFD700;
             font-size: 24px;
@@ -375,22 +560,29 @@
             }
         }
 
+        /* AI Attack */
         .ai-attack {
             border-radius: 50%;
             animation: pulse 0.5s infinite;
         }
+
+        /* AI Skill */
         .ai-skill {
             animation: rotate 1s infinite linear;
         }
+
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.2); }
             100% { transform: scale(1); }
         }
+
         @keyframes rotate {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
+
+        /* Save/Load Panel */
         .save-load-panel {
             position: fixed;
             top: 50%;
@@ -403,6 +595,8 @@
             z-index: 1000;
             display: none;
         }
+
+        /* Save Slot */
         .save-slot {
             margin: 10px 0;
             padding: 10px;
@@ -412,6 +606,7 @@
             justify-content: space-between;
             align-items: center;
         }
+
         .save-slot button {
             margin-left: 10px;
             padding: 5px 10px;
@@ -419,18 +614,23 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
         .save-slot button.save {
             background: #4CAF50;
             color: white;
         }
+
         .save-slot button.load {
             background: #2196F3;
             color: white;
         }
+
         .save-slot button.delete {
             background: #f44336;
             color: white;
         }
+
+        /* Close Panel */
         .close-panel {
             position: absolute;
             top: 10px;
@@ -440,6 +640,118 @@
             color: white;
             font-size: 20px;
             cursor: pointer;
+        }
+
+        /* Game Buttons */
+        .game-buttons {
+            position: absolute;
+            top: calc(var(--game-height) * 0.15);  /* Change this line to adjust vertical position */
+            right: calc(var(--game-width) * 0.1);  /* Change this line to adjust horizontal position */
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+        }
+
+        /* Control Buttons and Dropdown */
+        .game-controls button,
+        #dummyElement {
+            padding: 8px 16px;
+            width: calc(var(--game-width) * 0.12);  /* Match skillInput width */
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: white;
+            font-family: inherit;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        .game-controls button:hover,
+        #dummyElement:hover {
+            background: rgba(0, 0, 0, 0.9);
+            border-color: #666;
+        }
+
+        #dummyElement {
+            margin-top: 5px;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 12px;
+            padding-right: 30px;
+        }
+
+        #dummyElement option {
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+        }
+
+        /* AI Status Indicators */
+        .ai-status-container {
+            position: absolute;
+            top: calc(var(--game-height) * 0.2 - 110px);  /* Below the game controls */
+            right: calc(var(--game-width) * 0.43);
+            width: calc(var(--game-width) * 0.25);
+            z-index: 100;
+        }
+
+        .ai-loading {
+            color: #fff;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            display: none;
+            text-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .ai-error {
+            color: #ff4444;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            display: none;
+            text-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .skill-description .element-description {
+            color: #b8b8b8;
+            font-size: 12px;
+            margin: 6px 0 10px 0;
+            padding: 0 6px;
+            font-style: italic;
+        }
+
+        .skill-description .element {
+            font-weight: 500;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .skill-description .stats {
+            color: #b8b8b8;
+            font-size: 12px;
+            margin: 8px 0;
+            padding: 8px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .skill-description .skill-lore {
+            color: #e0e0e0;
+            font-size: 13px;
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            line-height: 1.5;
+            font-style: italic;
+            border-left: 2px solid rgba(255, 255, 255, 0.2);
         }
     </style>
 </head>
@@ -478,10 +790,12 @@
         <div id="rangedBall"></div>
         <div id="dummy">100</div>
     </div>
-    <input type="text" id="skillInput" placeholder="Type a skill (e.g., 'shoot a fire ball')">
+    <input type="text" id="skillInput" placeholder="Type a skill (e.g., 'shoot a fire ball')" />
+    <div class="game-buttons">
     <button onclick="createSkill()">Summon Skill</button>
     <button onclick="resetDummy()">Reset Dummy</button>
-    <button onclick="toggleSaveLoadPanel()">Save/Load Skills</button>
+        <button onclick="toggleSaveLoadPanel()">Save/Load Skills</button>
+    </div>
     <div id="skillList"></div>
     <div class="save-load-panel" id="saveLoadPanel">
         <button class="close-panel" onclick="toggleSaveLoadPanel()">✕</button>
@@ -490,6 +804,14 @@
     </div>
 
     <script>
+        // Game area dimensions (matching CSS variables)
+        const GAME_WIDTH = 1366;
+        const GAME_HEIGHT = 768;
+        
+        // Entity sizes (matching CSS variables)
+        const CHARACTER_SIZE = 50;
+        const PROJECTILE_SIZE = 20;
+
         const character = document.getElementById('character');
         const rangedBall = document.getElementById('rangedBall');
         const dummy = document.getElementById('dummy');
@@ -763,7 +1085,15 @@
                 name: 'Burn',
                 duration: 5000,
                 tickInterval: 500,
-                damagePerTick: 5,
+                damagePerTick: (source) => {
+                    // 10% of STR per tick, source is either 'player' or 'ai'
+                    if (source === 'player') {
+                        return Math.max(1, Math.floor(playerStats.str * 0.1));
+                    } else {
+                        // AI burn damage is fixed at 1 for balance
+                        return 1;
+                    }
+                },
                 color: '#ff4444',
                 particle: '🔥',
                 chance: 0.35,
@@ -907,10 +1237,15 @@
                 if ((effect.type === 'burn' || effect.type === 'poison') && 
                     now - effect.lastTickTime >= effectData.tickInterval) {
                     
+                    // Get damage value, handling both function and static values
+                    const damage = typeof effectData.damagePerTick === 'function' ? 
+                        effectData.damagePerTick(entityType === 'player' ? 'ai' : 'player') : 
+                        effectData.damagePerTick;
+
                     if (entityType === 'player') {
-                        damagePlayer(effectData.damagePerTick);
+                        damagePlayer(damage);
                     } else {
-                        dummyHealth = Math.max(0, dummyHealth - effectData.damagePerTick);
+                        dummyHealth = Math.max(0, dummyHealth - damage);
                         dummy.textContent = dummyHealth;
                         if (dummyHealth <= 0) {
                             dummyHealth = 0;
@@ -929,7 +1264,7 @@
                     damageText.style.left = targetElement.style.left;
                     damageText.style.top = (parseInt(targetElement.style.top) - 20) + 'px';
                     damageText.style.color = effectData.color;
-                    damageText.textContent = effectData.damagePerTick;
+                    damageText.textContent = damage;
                     document.getElementById('gameArea').appendChild(damageText);
                     setTimeout(() => damageText.remove(), 1000);
 
@@ -960,8 +1295,8 @@
             const newX = charX + dx * entityStatus.player.currentSpeed;
             const newY = charY + dy * entityStatus.player.currentSpeed;
 
-            if (newX >= 0 && newX <= 550) charX = newX;
-            if (newY >= 0 && newY <= 350) charY = newY;
+            if (newX >= 0 && newX <= GAME_WIDTH - CHARACTER_SIZE) charX = newX;
+            if (newY >= 0 && newY <= GAME_HEIGHT - CHARACTER_SIZE) charY = newY;
 
             character.style.left = charX + 'px';
             character.style.top = charY + 'px';
@@ -1036,14 +1371,14 @@
             }
 
             // Calculate new position
-            const newX = Math.max(0, Math.min(550, charX + dx * TELEPORT_DISTANCE));
-            const newY = Math.max(0, Math.min(350, charY + dy * TELEPORT_DISTANCE));
+            const newX = Math.max(0, Math.min(GAME_WIDTH - CHARACTER_SIZE, charX + dx * TELEPORT_DISTANCE));
+            const newY = Math.max(0, Math.min(GAME_HEIGHT - CHARACTER_SIZE, charY + dy * TELEPORT_DISTANCE));
 
             // Create afterimage effect
             const afterimage = document.createElement('div');
             afterimage.style.position = 'absolute';
-            afterimage.style.width = '50px';
-            afterimage.style.height = '50px';
+            afterimage.style.width = `${CHARACTER_SIZE}px`;
+            afterimage.style.height = `${CHARACTER_SIZE}px`;
             afterimage.style.background = 'rgba(0, 0, 255, 0.3)';
             afterimage.style.borderRadius = '50%';
             afterimage.style.left = charX + 'px';
@@ -1176,14 +1511,17 @@
                 // Calculate elemental modifier
                 const elementalMod = calculateElementalModifier(element, dummyElement);
                 
-                // Apply burn amplifier if applicable
+                // Check if target is burned (20% more damage to burned targets)
+                const burnVulnerability = entityStatus.ai.activeEffects.some(effect => effect.type === 'burn') ? 1.2 : 1.0;
+                
+                // Apply burn amplifier only for fire damage
                 const burnAmplifier = element === 'fire' && entityStatus.player.activeEffects.some(effect => effect.type === 'burn') 
                     ? statusEffects.burn.damageAmplifier 
                     : 1;
                 
                 // Calculate final damage
                 const finalDamage = Math.floor(
-                    damage * damageMultiplier * (lukBonus ? 2 : 1) * elementalMod * burnAmplifier
+                    damage * damageMultiplier * (lukBonus ? 2 : 1) * elementalMod * burnAmplifier * burnVulnerability * (type === 'melee' ? 2 : 1)
                 );
 
                 playerStats.sp -= spCost;
@@ -1217,17 +1555,25 @@
                     // Scale projectile speed with DEX (reduced from 0.5 to 0.3 per point)
                     const projectileSpeed = 8 + (playerStats.dex * 0.3);
                     
-                    rangedBall.style.width = `${ballSize}px`;
-                    rangedBall.style.height = `${ballSize}px`;
-                    rangedBall.style.background = elements[element].gradient;
-                    rangedBall.style.boxShadow = `0 0 10px ${elements[element].particleColor}`;
-                    rangedBall.style.display = 'block';
+                    // Create a new projectile for this shot
+                    const projectile = document.createElement('div');
+                    projectile.className = 'projectile';
+                    projectile.style.width = `${ballSize}px`;
+                    projectile.style.height = `${ballSize}px`;
+                    projectile.style.background = elements[element].gradient;
+                    projectile.style.boxShadow = `0 0 10px ${elements[element].particleColor}`;
+                    projectile.style.position = 'absolute';
+                    projectile.style.borderRadius = '50%';
+                    projectile.style.zIndex = '100';
                     
                     // Start from character center
                     let ballX = charX + 25;
                     let ballY = charY + 25;
-                    rangedBall.style.left = ballX + 'px';
-                    rangedBall.style.top = ballY + 'px';
+                    projectile.style.left = ballX + 'px';
+                    projectile.style.top = ballY + 'px';
+                    
+                    // Add to game area
+                    document.getElementById('gameArea').appendChild(projectile);
 
                     // Calculate direction to mouse cursor
                     const dx = mouseX - ballX;
@@ -1289,8 +1635,8 @@
                             setTimeout(() => damageText.remove(), 1500);
 
                             clearInterval(moveBall);
-                            rangedBall.style.display = 'none';
-                        } else if (ballX < 0 || ballX > 600 || ballY < 0 || ballY > 400) {
+                            projectile.remove();  // Remove this projectile
+                        } else if (ballX < 0 || ballX > GAME_WIDTH || ballY < 0 || ballY > GAME_HEIGHT) {
                             // Show "Miss!" text if projectile goes off screen
                             const missText = document.createElement('div');
                             missText.className = 'combat-text';
@@ -1303,21 +1649,21 @@
                             setTimeout(() => missText.remove(), 1500);
 
                             clearInterval(moveBall);
-                            rangedBall.style.display = 'none';
+                            projectile.remove();  // Remove this projectile
                         } else {
-                            rangedBall.style.left = ballX + 'px';
-                            rangedBall.style.top = ballY + 'px';
+                            projectile.style.left = ballX + 'px';
+                            projectile.style.top = ballY + 'px';
                         }
                     }, 16);
                 } else {
-                    // For melee attacks, use cursor direction for hit detection
+                    // For melee attacks, use player position for hit detection
                     character.style.background = elements[element].gradient;
                     character.style.boxShadow = `0 0 10px ${elements[element].particleColor}`;
                     
-                    // Calculate distance to cursor position
+                    // Calculate distance between player and enemy
                     const distance = Math.sqrt(
-                        Math.pow(mouseX - aiState.x, 2) + 
-                        Math.pow(mouseY - aiState.y, 2)
+                        Math.pow((charX + CHARACTER_SIZE/2) - (aiState.x + CHARACTER_SIZE/2), 2) + 
+                        Math.pow((charY + CHARACTER_SIZE/2) - (aiState.y + CHARACTER_SIZE/2), 2)
                     );
                     
                     // Only deal damage if within melee range (70 pixels)
@@ -1422,8 +1768,8 @@
             const newX = charX + dx * entityStatus.player.currentSpeed;
             const newY = charY + dy * entityStatus.player.currentSpeed;
 
-            if (newX >= 0 && newX <= 550) charX = newX;
-            if (newY >= 0 && newY <= 350) charY = newY;
+            if (newX >= 0 && newX <= GAME_WIDTH - CHARACTER_SIZE) charX = newX;
+            if (newY >= 0 && newY <= GAME_HEIGHT - CHARACTER_SIZE) charY = newY;
 
             character.style.left = charX + 'px';
             character.style.top = charY + 'px';
@@ -1477,17 +1823,25 @@
             const prompt = skillInput.value.trim();
             if (!prompt) return;
 
+            // Get or create the status container
+            let statusContainer = document.querySelector('.ai-status-container');
+            if (!statusContainer) {
+                statusContainer = document.createElement('div');
+                statusContainer.className = 'ai-status-container';
+                document.getElementById('gameArea').appendChild(statusContainer);
+            }
+
             // Show loading indicator
             const loadingDiv = document.createElement('div');
             loadingDiv.className = 'ai-loading';
             loadingDiv.textContent = '🤖 AI is generating your skill...';
-            skillInput.parentNode.insertBefore(loadingDiv, skillInput.nextSibling);
+            statusContainer.appendChild(loadingDiv);
             loadingDiv.style.display = 'block';
 
             // Create error display
             const errorDiv = document.createElement('div');
             errorDiv.className = 'ai-error';
-            skillInput.parentNode.insertBefore(errorDiv, loadingDiv.nextSibling);
+            statusContainer.appendChild(errorDiv);
 
             try {
                 console.log('Sending prompt to AI:', prompt);
@@ -1612,15 +1966,22 @@
                             effect: createSkillEffect(
                                 skillData.type,
                                 skillData.color,
-                                skillData.damage,
+                                // Apply 100% bonus damage for melee skills
+                                skillData.type === 'melee' ? skillData.damage * 2 : skillData.damage,
                                 skillData.spCost,
                                 skillData.element,
                                 skillData.name,
                                 isDodgeSkill,
                                 skillData.cooldownMs
                             ),
-                            description: generateTechnicalDescription(skillData, isDodgeSkill),
-                            damage: skillData.damage,
+                            loreDescript: generateWoWDescription(prompt),
+                            description: generateTechnicalDescription({
+                                ...skillData,
+                                // Also update the damage shown in description
+                                damage: skillData.type === 'melee' ? skillData.damage * 2 : skillData.damage,
+                                loreDescript: generateWoWDescription(prompt)
+                            }, isDodgeSkill),
+                            damage: skillData.type === 'melee' ? skillData.damage * 2 : skillData.damage,
                             element: skillData.element,
                             spCost: skillData.spCost,
                             cooldownMs: skillData.cooldownMs,
@@ -1701,7 +2062,11 @@
                             isDodgeSkill,
                             skillData.cooldownMs
                         ),
-                        description: generateTechnicalDescription(skillData, isDodgeSkill),
+                        loreDescript: generateWoWDescription(prompt),
+                        description: generateTechnicalDescription({
+                            ...skillData,
+                            loreDescript: generateWoWDescription(prompt)
+                        }, isDodgeSkill),
                         damage: skillData.damage,
                         element: skillData.element,
                         spCost: skillData.spCost,
@@ -1822,26 +2187,34 @@
                 high: '#F44336'     // Red
             };
             
-            return `<div class="element-tag" style="background: ${element.gradient}; color: ${element.textColor}">
-                        ${element.name}${isDodgeSkill ? ' - Dodge' : ''}
+            return `
+                <h3>${skillData.name}</h3>
+                <div class="element" style="background: ${element.gradient}; color: ${element.textColor}">
+                    ${element.name}${isDodgeSkill ? ' • Dodge Skill' : ''}
+                </div>
+                <div class="element-description" style="color: ${element.color}">
+                    📖 ${element.description}
+                </div>
+                <div class="skill-lore">
+                    ${skillData.loreDescript}
+                </div>
+                <div class="stats">
+                    ${isDodgeSkill 
+                        ? `<div>✨ Effect: 1 second invulnerability</div>
+                           <div>🎯 Dodge Chance: 100%</div>` 
+                        : `<div class="damage">💥 Damage: ${skillData.type === 'melee' ? skillData.damage * 2 : skillData.damage}</div>`}
+                    <div class="sp-cost">✨ SP Cost: ${skillData.spCost}</div>
+                    <div class="cooldown">⏱ Cooldown: ${cooldownSec}s</div>
+                    <div>🎯 Type: ${isDodgeSkill ? 'Dodge' : skillData.type.charAt(0).toUpperCase() + skillData.type.slice(1)}</div>
+                    <div style="color: ${powerLevelColors[skillData.powerLevel.toLowerCase()]}">
+                        ⚡ Power: ${skillData.powerLevel.toUpperCase()}
                     </div>
-                    ${skillData.description}
-                    
-                    <div class="technical-details">
-                        <strong>Technical Details:</strong>
-                        ${isDodgeSkill 
-                            ? `• Effect: 1 second invulnerability\n• Dodge Chance: 100%` 
-                            : `• Base Damage: ${skillData.damage}`}
-                        • SP Cost: ${skillData.spCost}
-                        • Cooldown: ${cooldownSec}s
-                        • Type: ${isDodgeSkill ? 'Dodge' : skillData.type.charAt(0).toUpperCase() + skillData.type.slice(1)}
-                        • Power Level: <span style="color: ${powerLevelColors[skillData.powerLevel.toLowerCase()]}">${skillData.powerLevel.toUpperCase()}</span>
-                        
-                        <strong>Element Properties:</strong>
-                        • ${element.description}
-                        • Strong vs: ${element.strongAgainst.length ? element.strongAgainst.map(e => elements[e].name).join(', ') : 'None'}
-                        • Weak vs: ${element.weakAgainst.length ? element.weakAgainst.map(e => elements[e].name).join(', ') : 'None'}
-                    </div>`;
+                </div>
+                <div class="element-info">
+                    <div>💪 Strong vs: ${element.strongAgainst.length ? element.strongAgainst.map(e => elements[e].name).join(', ') : 'None'}</div>
+                    <div>⚠️ Weak vs: ${element.weakAgainst.length ? element.weakAgainst.map(e => elements[e].name).join(', ') : 'None'}</div>
+                </div>
+            `;
         }
 
         // Show skills with descriptions
@@ -1909,11 +2282,14 @@
                 
                 const removeButton = document.createElement('button');
                 removeButton.className = 'remove-skill';
-                removeButton.textContent = '✕';
+                removeButton.textContent = '×';
                 removeButton.onclick = (e) => {
                     e.stopPropagation();
-                    skills.splice(index, 1);
-                    updateSkillList();
+                    skillDiv.style.animation = 'fadeOut 0.3s forwards';
+                    setTimeout(() => {
+                        skills.splice(index, 1);
+                        updateSkillList();
+                    }, 300);
                 };
                 
                 skillHeader.appendChild(button);
@@ -1974,8 +2350,8 @@
                 
                 potion.className = `potion ${isHpPotion ? 'hp-potion' : 'sp-potion'}`;
                 // Random position within game area bounds
-                const x = Math.floor(Math.random() * 550);
-                const y = Math.floor(Math.random() * 350);
+                const x = Math.floor(Math.random() * GAME_WIDTH);
+                const y = Math.floor(Math.random() * GAME_HEIGHT);
                 
                 potion.style.left = x + 'px';
                 potion.style.top = y + 'px';
@@ -2358,8 +2734,8 @@
             projectile.style.position = 'absolute';
             projectile.style.left = aiState.x + 'px';
             projectile.style.top = aiState.y + 'px';
-            projectile.style.width = '20px';
-            projectile.style.height = '20px';
+            projectile.style.width = `${PROJECTILE_SIZE}px`;
+            projectile.style.height = `${PROJECTILE_SIZE}px`;
             projectile.style.borderRadius = '50%';
             
             // Style based on element
@@ -2434,7 +2810,7 @@
                     }
                     clearInterval(moveSkill);
                     projectile.remove();
-                } else if (x < 0 || x > 600 || y < 0 || y > 400) {
+                } else if (x < 0 || x > GAME_WIDTH || y < 0 || y > GAME_HEIGHT) {
                     clearInterval(moveSkill);
                     projectile.remove();
                 }
@@ -2520,8 +2896,8 @@
 
                 // Keep AI in bounds with padding
                 const padding = 50;
-                aiState.targetX = Math.max(padding, Math.min(550 - padding, aiState.targetX));
-                aiState.targetY = Math.max(padding, Math.min(350 - padding, aiState.targetY));
+                aiState.targetX = Math.max(padding, Math.min(GAME_WIDTH - padding, aiState.targetX));
+                aiState.targetY = Math.max(padding, Math.min(GAME_HEIGHT - padding, aiState.targetY));
 
                 // Smooth movement towards target
                 const dx = aiState.targetX - aiState.x;
@@ -2603,7 +2979,7 @@
                     clearInterval(moveAttack);
                     attackEffect.remove();
                     aiState.isAttacking = false;
-                } else if (x < 0 || x > 600 || y < 0 || y > 400) {
+                } else if (x < 0 || x > GAME_WIDTH || y < 0 || y > GAME_HEIGHT) {
                     // Out of bounds
                     clearInterval(moveAttack);
                     attackEffect.remove();
@@ -2619,8 +2995,8 @@
             // Create afterimage effect
             const afterimage = document.createElement('div');
             afterimage.style.position = 'absolute';
-            afterimage.style.width = '50px';
-            afterimage.style.height = '50px';
+            afterimage.style.width = `${CHARACTER_SIZE}px`;
+            afterimage.style.height = `${CHARACTER_SIZE}px`;
             afterimage.style.background = 'rgba(128, 0, 128, 0.3)';
             afterimage.style.borderRadius = '50%';
             afterimage.style.left = aiState.x + 'px';
@@ -2659,8 +3035,8 @@
                     const blinkDistance = 150;
                     
                     // Calculate new position perpendicular to projectile
-                    newX = Math.max(50, Math.min(550, aiState.x + Math.cos(perpAngle) * blinkDistance));
-                    newY = Math.max(50, Math.min(350, aiState.y + Math.sin(perpAngle) * blinkDistance));
+                    newX = Math.max(CHARACTER_SIZE, Math.min(GAME_WIDTH - CHARACTER_SIZE, aiState.x + Math.cos(perpAngle) * blinkDistance));
+                    newY = Math.max(CHARACTER_SIZE, Math.min(GAME_HEIGHT - CHARACTER_SIZE, aiState.y + Math.sin(perpAngle) * blinkDistance));
                 }
             }
             
@@ -2668,8 +3044,8 @@
             if (!newX || !newY) {
                 let attempts = 0;
                 do {
-                    newX = Math.max(50, Math.min(550, aiState.x + (Math.random() - 0.5) * 300));
-                    newY = Math.max(50, Math.min(350, aiState.y + (Math.random() - 0.5) * 300));
+                    newX = Math.max(CHARACTER_SIZE, Math.min(GAME_WIDTH - CHARACTER_SIZE, aiState.x + (Math.random() - 0.5) * 300));
+                    newY = Math.max(CHARACTER_SIZE, Math.min(GAME_HEIGHT - CHARACTER_SIZE, aiState.y + (Math.random() - 0.5) * 300));
                     attempts++;
                 } while (attempts < 10 && Math.sqrt(Math.pow(newX - charX, 2) + Math.pow(newY - charY, 2)) < 100);
             }
@@ -2774,13 +3150,14 @@
         function saveSkills(slotNumber) {
             const skillsToSave = skills.map(skill => ({
                 name: skill.name,
-                description: skill.description,
                 damage: skill.damage,
                 element: skill.element,
                 spCost: skill.spCost,
                 cooldownMs: skill.cooldownMs,
                 isDodgeSkill: skill.isDodgeSkill,
-                powerLevel: skill.powerLevel
+                powerLevel: skill.powerLevel,
+                type: skill.type || (skill.element === 'neutral' ? 'ranged' : 'ranged'),
+                loreDescript: skill.loreDescript
             }));
 
             const currentDate = new Date().toLocaleString();
@@ -2809,26 +3186,40 @@
             if (!savedSkills) return;
 
             const skillsData = JSON.parse(savedSkills);
-            skills = skillsData.map(skillData => ({
-                name: skillData.name,
-                effect: createSkillEffect(
-                    skillData.element === 'neutral' ? 'ranged' : 'ranged',
-                    elements[skillData.element].color,
-                    skillData.damage,
-                    skillData.spCost,
-                    skillData.element,
-                    skillData.name,
-                    skillData.isDodgeSkill,
-                    skillData.cooldownMs
-                ),
-                description: skillData.description,
-                damage: skillData.damage,
-                element: skillData.element,
-                spCost: skillData.spCost,
-                cooldownMs: skillData.cooldownMs,
-                isDodgeSkill: skillData.isDodgeSkill,
-                powerLevel: skillData.powerLevel
-            }));
+            skills = skillsData.map(skillData => {
+                // Create a temporary full skillData object for description generation
+                const fullSkillData = {
+                    ...skillData,
+                    type: skillData.type || (skillData.element === 'neutral' ? 'ranged' : 'ranged'),
+                    color: elements[skillData.element].color,
+                    hasStatusEffect: false,
+                    isAoE: false,
+                    utilityValue: skillData.isDodgeSkill ? 8 : 2
+                };
+
+                return {
+                    name: skillData.name,
+                    effect: createSkillEffect(
+                        fullSkillData.type,
+                        elements[skillData.element].color,
+                        skillData.damage,
+                        skillData.spCost,
+                        skillData.element,
+                        skillData.name,
+                        skillData.isDodgeSkill,
+                        skillData.cooldownMs
+                    ),
+                    description: generateTechnicalDescription(fullSkillData, skillData.isDodgeSkill),
+                    originalDescription: skillData.originalDescription || skillData.description,
+                    damage: skillData.damage,
+                    element: skillData.element,
+                    spCost: skillData.spCost,
+                    cooldownMs: skillData.cooldownMs,
+                    isDodgeSkill: skillData.isDodgeSkill,
+                    powerLevel: skillData.powerLevel,
+                    type: fullSkillData.type
+                };
+            });
 
             // Show success message
             const successText = document.createElement('div');
