@@ -2,6 +2,8 @@
     --game-width: min(1366px, 95vw);
     --game-height: min(768px, 70vh);
     --player-size: 30px;
+    --skill-button-size: 50px;
+    --skill-button-margin: 10px;
 }
 
 * {
@@ -35,6 +37,7 @@ h1 {
     background: #2a2a2a;
     border: 2px solid #444;
     flex-shrink: 0;
+    margin-bottom: calc(var(--skill-button-size) + var(--skill-button-margin) * 2);
 }
 
 #player {
@@ -83,46 +86,262 @@ h1 {
 }
 
 #result-display {
-    margin-top: 10px;
-    padding: 10px;
-    background: #444;
-    border-radius: 4px;
-    display: none;
-    font-size: 14px;
-    line-height: 1.4;
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background-color: #2a2a2a;
+    color: white;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-#skill-button {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 60px;
-    height: 60px;
-    background: #4a4a4a;
-    border: 2px solid #666;
-    border-radius: 50%;
+.error-message {
+    color: #ff4444;
+    padding: 10px;
+    border-left: 3px solid #ff4444;
+    background-color: rgba(255, 68, 68, 0.1);
+    border-radius: 4px;
+}
+
+.skill-info {
+    background-color: #333;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.skill-header {
+    background-color: #444;
+    padding: 15px;
+    font-size: 20px;
+    font-weight: bold;
+    text-align: center;
+    color: #fff;
+    border-bottom: 2px solid #555;
+}
+
+.skill-stats {
+    padding: 15px;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #444;
+}
+
+.stat-row:last-child {
+    border-bottom: none;
+}
+
+.stat-label {
+    color: #aaa;
+    font-size: 14px;
+}
+
+.stat-value {
+    font-weight: bold;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: #444;
+}
+
+/* Element colors */
+.stat-value.fire { color: #ff6b6b; }
+.stat-value.water { color: #4dabf7; }
+.stat-value.wind { color: #69db7c; }
+.stat-value.earth { color: #ffd43b; }
+.stat-value.poison { color: #be4bdb; }
+.stat-value.holy { color: #ffd700; }
+.stat-value.shadow { color: #868e96; }
+.stat-value.undead { color: #495057; }
+
+/* Range colors */
+.stat-value.melee { color: #ff922b; }
+.stat-value.ranged { color: #20c997; }
+
+#prompt-container {
+    margin: 20px;
+    padding: 20px;
+    background-color: #333;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    width: 100%;
+    max-width: 500px;
+}
+
+#prompt-input {
+    width: 100%;
+    min-height: 100px;
+    margin-bottom: 10px;
+    padding: 10px;
+    background-color: #444;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: white;
+    font-family: inherit;
+    resize: vertical;
+}
+
+#analyze-btn {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
     cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+    width: 100%;
+}
+
+#analyze-btn:hover {
+    background-color: #45a049;
+}
+
+#analyze-btn:disabled {
+    background-color: #666;
+    cursor: not-allowed;
+}
+
+#skill-bar {
+    position: absolute;
+    bottom: calc(var(--game-height) * 0.25);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.skill-button {
+    width: 50px;
+    height: 50px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid #4a90e2;
+    border-radius: 8px;
+    color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
-    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
     user-select: none;
-    transition: all 0.2s;
 }
 
-#skill-button:hover {
-    background: #5a5a5a;
-    transform: scale(1.1);
+.skill-button .key-text {
+    z-index: 1;
 }
 
-#skill-button:active {
-    transform: scale(0.9);
+.skill-button:hover {
+    background: rgba(0, 0, 0, 0.9);
+    border-color: #64a6ed;
+    transform: translateY(-2px);
 }
 
-#skill-button.disabled {
+.skill-button.disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.skill-button.rebinding {
+    background: #ff6b6b;
+    animation: pulse 1s infinite;
+    cursor: default;
+}
+
+.binding-hint {
+    font-size: 0.8em;
+    color: #888;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.skill-tooltip {
+    position: absolute;
+    bottom: 120%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.95);
+    border: 1px solid #4a90e2;
+    border-radius: 4px;
+    padding: 10px;
+    width: 200px;
+    color: white;
+    font-size: 14px;
+    pointer-events: none;
+    display: none;
+    z-index: 1001;
+    white-space: normal;
+}
+
+.skill-button:hover .skill-tooltip {
+    display: block;
+}
+
+.skill-name {
+    font-size: 16px;
+    font-weight: bold;
+    color: #4a90e2;
+    margin-bottom: 8px;
+}
+
+.skill-stats {
+    display: grid;
+    gap: 4px;
+}
+
+.stat {
+    display: flex;
+    justify-content: space-between;
+}
+
+.stat span {
+    color: #888;
+}
+
+#skill-slot-selection {
+    display: flex;
+    gap: 5px;
+    margin: 10px 0;
+    justify-content: center;
+}
+
+.skill-slot-btn {
+    padding: 5px 15px;
+    background: #2c3e50;
+    border: 1px solid #34495e;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.skill-slot-btn:hover {
+    background: #34495e;
+}
+
+.skill-slot-btn.selected {
+    background: #3498db;
+    border-color: #2980b9;
+}
+
+.empty-skill {
+    text-align: center;
+    color: #888;
+    font-style: italic;
 }
 
 .enemy {
@@ -149,4 +368,140 @@ h1 {
     #prompt-input {
         height: 40px;
     }
+}
+
+.missing-fields {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: rgba(255, 193, 7, 0.1);
+    border-left: 3px solid #ffc107;
+}
+
+.warning-header {
+    color: #ffc107;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.missing-list {
+    color: #ffd54f;
+    font-size: 14px;
+}
+
+.raw-response {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #2d2d2d;
+    border-radius: 6px;
+    font-family: monospace;
+}
+
+.raw-header {
+    color: #64b5f6;
+    font-weight: bold;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.raw-response pre {
+    margin: 0;
+    padding: 10px;
+    background-color: #1a1a1a;
+    border-radius: 4px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: #e0e0e0;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.tooltip-content {
+    font-size: 14px;
+    color: #fff;
+}
+
+.tooltip-header {
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    padding: 5px 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #444;
+    color: #fff;
+}
+
+.tooltip-stats {
+    padding: 5px;
+}
+
+.tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 4px 0;
+}
+
+.tooltip-label {
+    color: #888;
+    font-size: 12px;
+}
+
+.tooltip-value {
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background-color: #333;
+}
+
+/* Element colors in tooltip */
+.tooltip-value.fire { color: #ff6b6b; }
+.tooltip-value.water { color: #4dabf7; }
+.tooltip-value.wind { color: #69db7c; }
+.tooltip-value.earth { color: #ffd43b; }
+.tooltip-value.poison { color: #be4bdb; }
+.tooltip-value.holy { color: #ffd700; }
+.tooltip-value.shadow { color: #868e96; }
+.tooltip-value.undead { color: #495057; }
+
+/* Range colors in tooltip */
+.tooltip-value.melee { color: #ff922b; }
+.tooltip-value.ranged { color: #20c997; }
+
+/* Add arrow pointer to tooltip */
+.skill-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: rgba(0, 0, 0, 0.95) transparent transparent transparent;
+}
+
+.skill-button.error {
+    background: #ff4444;
+    color: white;
+    animation: shake 0.5s;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+.skill-name-display {
+    position: absolute;
+    font-size: 24px;
+    color: #fff;
+    text-shadow: 0 0 3px #000, 0 0 5px #000;
+    pointer-events: none;
+    z-index: 1000;
+    transition: all 1s ease-out;
+    font-weight: bold;
+    text-align: center;
+    min-width: 120px;
+    transform-origin: center;
 } 

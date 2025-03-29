@@ -17,7 +17,24 @@
         <button id="analyze-btn">Analyze with AI</button>
         <div id="result-display"></div>
     </div>
-    <div id="skill-button">Q</div>
+    <div id="skill-bar">
+        <div id="skill-1-button" class="skill-button selected">
+            <span class="key-text">1</span>
+            <div class="skill-tooltip"></div>
+        </div>
+        <div id="skill-2-button" class="skill-button">
+            <span class="key-text">2</span>
+            <div class="skill-tooltip"></div>
+        </div>
+        <div id="skill-3-button" class="skill-button">
+            <span class="key-text">3</span>
+            <div class="skill-tooltip"></div>
+        </div>
+        <div id="skill-4-button" class="skill-button">
+            <span class="key-text">4</span>
+            <div class="skill-tooltip"></div>
+        </div>
+    </div>
 
     <script type="module">
         // Skill Components
@@ -33,13 +50,20 @@
         import { CombatSystem } from './GameLogic/CombatSystem.js';
         import { DamageSystem } from './GameLogic/DamageSystem.js';
         import { AISystem } from './GameLogic/AISystem.js';
+        import { SkillManager } from './GameLogic/SkillManager.js';
 
         // Initialize game
         const gameState = new GameState();
+        
+        // Initialize core systems
+        gameState.skillSystem = new SkillSystem(gameState);
+        gameState.skillManager = new SkillManager(gameState);
+        gameState.damageSystem = new DamageSystem(gameState);
+        
+        // Initialize game systems
         const movementSystem = new MovementSystem(gameState);
         const combatSystem = new CombatSystem(gameState);
         const aiSystem = new AISystem(gameState);
-        const damageSystem = new DamageSystem(gameState);
     </script>
 </body>
 </html>

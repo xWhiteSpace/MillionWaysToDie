@@ -3,7 +3,6 @@ import { SkillSystem } from '../SkillClassifications/SkillSystem.js';
 export class CombatSystem {
     constructor(gameState) {
         this.gameState = gameState;
-        this.skillSystem = new SkillSystem(gameState);
         this.setupCombatControls();
         
         // Add some test enemies
@@ -19,33 +18,16 @@ export class CombatSystem {
             this.gameState.mouseY = e.clientY - rect.top;
         });
 
-        document.addEventListener('keydown', (e) => {
-            if (e.key.toLowerCase() === 'q' && !this.gameState.skillCooldown) {
-                this.executeSkill();
+        // Setup click controls for skill buttons
+        ['1', '2', '3', '4'].forEach(slot => {
+            const button = document.getElementById(`skill-${slot}-button`);
+            if (button) {
+                button.addEventListener('click', () => {
+                    if (!this.gameState.skillCooldown) {
+                        this.gameState.skillManager.executeSkill(slot);
+                    }
+                });
             }
         });
-
-        this.gameState.skillButton.addEventListener('click', () => {
-            if (!this.gameState.skillCooldown) {
-                this.executeSkill();
-            }
-        });
-    }
-
-    executeSkill() {
-        if (!this.gameState.currentSkill) return;
-
-        // Start cooldown
-        this.gameState.skillCooldown = true;
-        this.gameState.skillButton.classList.add('disabled');
-        
-        // Execute skill using SkillSystem
-        this.skillSystem.executeSkill(this.gameState.currentSkill);
-
-        // Reset cooldown after 1 second
-        setTimeout(() => {
-            this.gameState.skillCooldown = false;
-            this.gameState.skillButton.classList.remove('disabled');
-        }, 1000);
     }
 } 

@@ -1,10 +1,10 @@
-import { RangeSystem } from '../SkillClassifications/skills/RangeSystem.js';
-import { ElementSystem } from '../SkillClassifications/skills/ElementSystem.js';
-import { TypeSystem } from '../SkillClassifications/skills/TypeSystem.js';
-import { ShapeSystem } from '../SkillClassifications/skills/ShapeSystem.js';
-import { DurationSystem } from '../SkillClassifications/skills/DurationSystem.js';
-import { ScalingSystem } from '../SkillClassifications/skills/ScalingSystem.js';
-import { SPCostSystem } from '../SkillClassifications/skills/SPCostSystem.js';
+import { RangeSystem } from './skills/RangeSystem.js';
+import { ElementSystem } from './skills/ElementSystem.js';
+import { TypeSystem } from './skills/TypeSystem.js';
+import { ShapeSystem } from './skills/ShapeSystem.js';
+import { DurationSystem } from './skills/DurationSystem.js';
+import { ScalingSystem } from './skills/ScalingSystem.js';
+import { SPCostSystem } from './skills/SPCostSystem.js';
 
 export class SkillSystem {
     constructor(gameState) {
@@ -27,20 +27,18 @@ export class SkillSystem {
             return;
         }
 
-        const { shape, element, type, effectDuration, scalesWith } = skill;
+        // Get base values from scaling system
         const baseValue = 100; // Base value for scaling calculations
-
-        // Calculate scaled value based on stats
         const scaledValue = this.scalingSystem.calculateScaling(skill, baseValue);
 
         // Apply shape modifiers first
-        this.shapeSystem.applyShape(shape);
+        this.shapeSystem.applyShape(skill.shape);
 
         // Execute the skill based on range
         this.rangeSystem.execute(skill);
 
         // Apply elemental effects
-        this.elementSystem.applyElement(element);
+        this.elementSystem.applyElement(skill.element);
 
         // Create the effect object with scaled values
         const effect = {
@@ -49,9 +47,9 @@ export class SkillSystem {
             critChance: scaledValue.critChance,
             critMultiplier: scaledValue.critMultiplier,
             cooldownReduction: scaledValue.cooldownReduction,
-            start: () => this.typeSystem.applyType(type),
+            start: () => this.typeSystem.applyType(skill.type),
             cleanup: () => this.cleanupEffect(skill),
-            tick: () => this.typeSystem.applyType(type) // For channeled skills
+            tick: () => this.typeSystem.applyType(skill.type) // For channeled skills
         };
 
         // Apply duration system
