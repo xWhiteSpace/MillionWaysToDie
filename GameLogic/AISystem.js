@@ -1,5 +1,6 @@
 export class AISystem {
-    constructor() {
+    constructor(gameState) {
+        this.gameState = gameState;
         // Mock skill templates
         this.mockSkills = [
             {
@@ -39,6 +40,33 @@ export class AISystem {
                 description: "A quick slashing attack imbued with wind"
             }
         ];
+
+        // Wait for DOM to be ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.setupAnalysisButton());
+        } else {
+            this.setupAnalysisButton();
+        }
+    }
+
+    setupAnalysisButton() {
+        const analyzeBtn = document.getElementById('analyze-btn');
+        if (!analyzeBtn) {
+            console.error('Analyze button not found!');
+            return;
+        }
+
+        analyzeBtn.addEventListener('click', async () => {
+            const prompt = document.getElementById('prompt-input').value;
+            const result = await this.analyzePrompt(prompt);
+            const resultDisplay = document.getElementById('result-display');
+            resultDisplay.style.display = 'block';
+            resultDisplay.innerHTML = Object.entries(result)
+                .map(([key, value]) => `${key}: ${value}`)
+                .join('<br>');
+            
+            this.gameState.currentSkill = result;
+        });
     }
 
     async analyzePrompt(prompt) {
