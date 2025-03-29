@@ -1,0 +1,58 @@
+/* Damage Numbers */
+.damage-number {
+    position: absolute;
+    font-size: 20px;
+    font-weight: bold;
+    color: white;
+    text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+    z-index: 1000;
+    animation: float-up 1s ease-out forwards;
+    white-space: nowrap;
+}
+
+/* Critical Hit Style */
+.damage-number.critical {
+    color: #ff0;
+    font-size: 24px;
+    text-shadow: 
+        2px 2px 2px rgba(255, 0, 0, 0.5),
+        0 0 10px rgba(255, 255, 0, 0.5);
+    animation: float-up-critical 1s ease-out forwards;
+}
+
+/* Elemental Effectiveness Styles */
+.damage-number.super-effective {
+    color: #0f0;
+}
+
+.damage-number.not-very-effective {
+    color: #f00;
+}
+
+/* Animations */
+@keyframes float-up {
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-50px) scale(0.5);
+        opacity: 0;
+    }
+}
+
+@keyframes float-up-critical {
+    0% {
+        transform: translateY(0) scale(1.2);
+        opacity: 1;
+    }
+    50% {
+        transform: translateY(-25px) scale(1.4);
+        opacity: 0.8;
+    }
+    100% {
+        transform: translateY(-60px) scale(0.8);
+        opacity: 0;
+    }
+} 

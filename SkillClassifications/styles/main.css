@@ -1,0 +1,31 @@
+/* Import component styles */
+@import url('range.css');
+@import url('element.css');
+@import url('type.css');
+
+/* Common styles shared across components */
+.skill-effect {
+    position: absolute;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* Base animations shared across components */
+@keyframes fade {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes scale {
+    from { transform: scale(1); }
+    to { transform: scale(0); }
+}
+
+/* Utility classes */
+.hidden {
+    display: none;
+}
+
+.no-pointer-events {
+    pointer-events: none;
+} 

@@ -1,0 +1,26 @@
+.projectile {
+    width: 10px;
+    height: 10px;
+    background: red;
+    border-radius: 50%;
+    position: absolute;
+    pointer-events: none;
+    filter: blur(2px);
+}
+
+.melee-effect {
+    position: absolute;
+    pointer-events: none;
+    z-index: 2;
+}
+
+@keyframes melee-swing {
+    0% { transform: rotate(0deg); }
+    50% { transform: rotate(180deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes melee-slash {
+    0% { transform: scale(0); opacity: 1; }
+    100% { transform: scale(2); opacity: 0; }
+} 

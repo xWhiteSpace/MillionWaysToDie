@@ -1,0 +1,108 @@
+/* Element-based effects */
+.fire-effect, .fire-projectile, .fire-hit { 
+    background: radial-gradient(circle, #ff4400, transparent);
+}
+
+.water-effect, .water-projectile, .water-hit { 
+    background: radial-gradient(circle, #00aaff, transparent);
+}
+
+.wind-effect, .wind-projectile, .wind-hit { 
+    background: radial-gradient(circle, #88ff88, transparent);
+}
+
+.earth-effect, .earth-projectile, .earth-hit { 
+    background: radial-gradient(circle, #aa7744, transparent);
+}
+
+.poison-effect, .poison-projectile, .poison-hit { 
+    background: radial-gradient(circle, #aa44aa, transparent);
+}
+
+.holy-effect, .holy-projectile, .holy-hit { 
+    background: radial-gradient(circle, #ffff00, transparent);
+}
+
+.shadow-effect, .shadow-projectile, .shadow-hit { 
+    background: radial-gradient(circle, #442266, transparent);
+}
+
+.undead-effect, .undead-projectile, .undead-hit { 
+    background: radial-gradient(circle, #66aaaa, transparent);
+}
+
+.neutral-effect, .neutral-projectile, .neutral-hit { 
+    background: radial-gradient(circle, #aaaaaa, transparent);
+}
+
+/* Element-specific animations */
+.projectile.fire {
+    background: #ff4400;
+    box-shadow: 0 0 10px #ff4400;
+}
+
+.projectile.water {
+    background: #00aaff;
+    box-shadow: 0 0 10px #00aaff;
+}
+
+.projectile.wind {
+    background: #80ff80;
+    box-shadow: 0 0 10px #80ff80;
+    border-radius: 0;
+    transform: rotate(45deg);
+}
+
+.projectile.earth {
+    background: #8b4513;
+    box-shadow: 0 0 10px #8b4513;
+    border-radius: 0;
+}
+
+.projectile.poison {
+    background: #8b008b;
+    box-shadow: 0 0 10px #8b008b;
+    animation: pulse 1s infinite;
+}
+
+.projectile.holy {
+    background: #ffff00;
+    box-shadow: 0 0 15px #ffff00;
+    animation: holy-pulse 1s infinite;
+}
+
+.projectile.shadow {
+    background: #000000;
+    box-shadow: 0 0 10px #4a0080;
+    filter: blur(4px);
+}
+
+.projectile.undead {
+    background: #40826d;
+    box-shadow: 0 0 10px #40826d;
+    animation: undead-pulse 2s infinite;
+}
+
+.projectile.neutral {
+    background: #808080;
+    box-shadow: 0 0 5px #808080;
+}
+
+/* Element-specific keyframes */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+@keyframes holy-pulse {
+    0% { filter: brightness(1); }
+    50% { filter: brightness(1.5); }
+    100% { filter: brightness(1); }
+}
+
+@keyframes undead-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+} 
